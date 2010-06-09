@@ -1,3 +1,23 @@
+unity (0.2.7-0ubuntu2) maverick; urgency=low
+
+  * debian/rules:
+    - include gnome.mk for installing default schema in /usr
+  * debian/unity.preinst:
+    - remove schema in /etc installed by previous package
+  * debian/control:
+    - Add transitional netbook-launcher package, and have Unity
+      C/R/P: netbook-launcher.
+    - Add Breaks: maximus as incompatible in with Unity
+  * debian/rules:
+    - Force an epoch bump on the transitional netbook-launcher package,
+      since the original package has a higher version.
+  * debian/unity.preinst:
+    - Remove netbook-launcher autostart .desktop conffile on upgrade.
+  * debian/copyright:
+    - fix typo
+
+ -- Didier Roche <didrocks@ubuntu.com>  Wed, 09 Jun 2010 13:29:48 +0200
+
 unity (0.2.7-0ubuntu1) maverick; urgency=low
 
   * New upstream release.
