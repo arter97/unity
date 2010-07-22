@@ -12,7 +12,7 @@ Build-Depends: cdbs,
                libunique-dev,
                libclutter-1.0-dev,
                libclutter-gtk-0.10-dev (>= 0.10.2-1ubuntu1),
-               libclutk-dev (>= 0.3.42),
+               libclutk-dev (>= 0.3.44-0ubuntu2),
                libbamf-dev (>= 0.2.32),
                libglib2.0-dev (>= 2.22.2-0ubuntu1wncksync3),
                libdbusmenu-glib-dev (>= 0.3.6),
@@ -33,11 +33,7 @@ Depends: ${shlibs:Depends},
          ${misc:Depends},
          mutter,
          unity-asset-pool
-Conflicts: netbook-launcher (<= 1:2.1.18)
-Replaces: netbook-launcher (<= 1:2.1.18)
-Provides: indicator-renderer,
-          netbook-launcher
-Breaks: maximus (<< 0.4.14-1ubuntu2)
+Provides: indicator-renderer
 Recommends: unity-place-applications,
             unity-place-files,
             indicator-appmenu,
@@ -47,7 +43,7 @@ Recommends: unity-place-applications,
             indicator-messages,
             indicator-me,
             indicator-session,
-            ubuntu-netbook-default-settings,
+            ubuntu-netbook-unity-default-settings,
 Description: Unity Interface for Ubuntu Netbook Edition
  Unity is a graphical interface designed for Ubuntu Netbook Edition
 
@@ -93,14 +89,4 @@ Description: binding to get places into the launcher - development files
  and add places in Unity environment.
  .
  This package contains files that are needed to build applications.
-
-Package: netbook-launcher
-Section: oldlibs
-Architecture: all
-Depends: unity
-Description: transitional package
- Unity supersedes netbook-launcher in maverick.
- .
- This package ensures a clean upgrade path, and can be safely removed after
- the upgrade. 
 
