@@ -1,3 +1,26 @@
+unity (0.2.22-0ubuntu1) maverick; urgency=low
+
+  * New upstream release.
+    - Add support for window control buttons on the panel (LP: #610014)
+    - Create a files group model for downloads (LP: #610370)
+    - Fix odd representation of (partially) off-screen windows (LP: #594221)
+    - Fix selected category doesn't match the displayed one after a place
+      switch (LP: #604949)
+    - Move places shortcuts to the launcher (LP: #610015)
+    - Fix wrong arrow location in place views (LP: #604800)
+    - Launcher icons no more folded when launcher first starts (LP: #601107)
+  * debian/control:
+    - bump clutk build-dep
+  * debian/patches/02_disable_expandable_menu.patch,
+    debian/patches/03_strip_underscore_on_quicklist.patch,
+    debian/patches/04_fix_scroller_focus_issue.patch,
+    debian/patches/05_fix_ws_switching.patch:
+    - removed
+  * debian/patches/02_i18n_launcher.patch:
+    - from trunk, support use localized apps name (LP: #612494)
+
+ -- Didier Roche <didrocks@ubuntu.com>  Mon, 02 Aug 2010 15:55:16 +0200
+
 unity (0.2.20-0ubuntu2) maverick; urgency=low
 
   * Misc fixes from git
