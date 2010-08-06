@@ -23,15 +23,15 @@ Build-Depends: cdbs,
                libdee-dev (>= 0.3.0),
                libindicator-dev (>= 0.3.1),
                libunity-misc-dev (>= 0.1.0),
-               libmutter-dev (>= 2.29.0-1ubuntu1dx3+r3434),
-Standards-Version: 3.8.4
+               libmutter-dev (>= 2.31.5),
+Standards-Version: 3.9.1
 Homepage: https://launchpad.net/unity
 
 Package: unity
 Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends},
-         mutter,
+         mutter (>= 2.31.5),
          unity-asset-pool
 Provides: indicator-renderer
 Recommends: unity-place-applications,
