@@ -1,18 +1,15 @@
-Description: Upstream changes introduced in version 0.2.32-0ubuntu3
+Description: Upstream changes introduced in version 0.2.32-0ubuntu4
  This patch has been created by dpkg-source during the package build.
  Here's the last changelog entry, hopefully it gives details on why
  those changes were made:
  .
- unity (0.2.32-0ubuntu3) maverick; urgency=low
+ unity (0.2.32-0ubuntu4) maverick; urgency=low
  .
-   * Backport Gord's changes to fix scrolling and click issues in the
-     launcher and Neil's changes for the recent artwork changes
-   * debian/source:
-     - use format 3
-     - list binaries that changed in the backport
+   * Backport a fix for new tiles being unresponsive (lp: #623953)
  .
  The person named in the Author field signed this changelog entry.
 Author: Sebastien Bacher <seb128@ubuntu.com>
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/623953
 
 ---
 The information above should follow the Patch Tagging Guidelines, please
@@ -104,3 +101,33 @@ Last-Update: <YYYY-MM-DD>
  
        child.group_type = ScrollerChild.GroupType.DEVICE;
        child.drag_removed.connect (eject_volume);
+--- unity-0.2.32.orig/unity-private/launcher/scroller-view.vala
++++ unity-0.2.32/unity-private/launcher/scroller-view.vala
+@@ -1571,16 +1571,7 @@ namespace Unity.Launcher
+     public override void pick (Clutter.Color color)
+     {
+       base.pick (color);
+-      for (int index = draw_btf.size-1; index >= 0; index--)
+-        {
+-          ScrollerChild child = draw_btf[index];
+-          if (child is ScrollerChild && child.opacity > 0 && !child.do_not_render)
+-            {
+-              (child as ScrollerChild).paint ();
+-            }
+-        }
+-
+-      foreach (ScrollerChild child in draw_ftb)
++      foreach (ScrollerChild child in model)
+         {
+           if (child is ScrollerChild && child.opacity > 0 && !child.do_not_render)
+             {
+--- unity-0.2.32.orig/unity-private/launcher/scroller-controller.vala
++++ unity-0.2.32/unity-private/launcher/scroller-controller.vala
+@@ -126,6 +126,7 @@ namespace Unity.Launcher
+           else
+             {
+               ScrollerChild child = new ScrollerChild ();
++              child.group_type = ScrollerChild.GroupType.APPLICATION;
+               controller = new ApplicationController (null, child);
+               (controller as ApplicationController).attach_application (app);
+               if (app.user_visible ())
