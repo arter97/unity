@@ -154,6 +154,47 @@ namespace Unity {
     public SpacesManager (Plugin plugin) {
       this.plugin = plugin;
       this.plugin.workspace_switch_event.connect (this.workspace_switched);
+      
+      int num_workspaces = Mutter.meta_prefs_get_num_workspaces ();
+      
+      if (num_workspaces <= 4)
+        {
+          set_desktop_layout (2, 2, 2 * 2);
+        }
+      else
+        {
+          int width  = (int) Math.ceil  (Math.sqrt ((double) num_workspaces));
+          int height = 1;
+          while (width * height < num_workspaces)
+            height++;
+          
+          set_desktop_layout (width, height, num_workspaces);
+        }      
+    }
+
+    void set_desktop_layout (int columns, int rows, int num_workspace)
+    {
+        X.Display display;
+        ulong data[4];
+
+        if (columns < 1 || rows < 1 || num_workspace > columns * rows)
+                return;
+
+        display = plugin.plugin.get_xdisplay ();
+        
+        Mutter.meta_prefs_set_num_workspaces (num_workspace);
+
+        data[0] = 0;  // horizontal orientation
+        data[1] = columns;
+        data[2] = rows;
+        data[3] = 0; //top left
+        display.change_property(display.default_root_window (), 
+                                display.intern_atom ("_NET_DESKTOP_LAYOUT", false), 
+                                X.XA_CARDINAL,
+                                32,
+                                X.PropMode.Replace,
+                                (uchar []) data, 
+                                4);
     }
 
     construct

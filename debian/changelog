@@ -1,3 +1,20 @@
+unity (0.2.44-0ubuntu1) maverick; urgency=low
+
+  * New upstream release:
+    - refine launcher tile super key overlay aesthetic (LP: #633069)
+    - improve Cof logo (LP: #644686)
+    - fix a crasher in the place activation (LP: #634364)
+    - fixes favorite loading for didrocks (thanks!) (LP: #645835)
+    - workaround translation issue for Unity trash (LP: #646653)
+    - MT final adjustement for maverick (LP: #645848, #640501)
+  * debian/control:
+    - depend on latest unity-asset-pool
+  * backport fix to respect workspace layout
+  * debian/libunity0.symbols:
+    - updated
+
+ -- Didier Roche <didrocks@ubuntu.com>  Fri, 24 Sep 2010 19:57:46 +0200
+
 unity (0.2.42-0ubuntu3) maverick; urgency=low
 
   * we need the .c file too (not automatically rebuilt) to fix crash on system
