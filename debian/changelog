@@ -1,3 +1,13 @@
+unity (0.2.46-0ubuntu4) maverick; urgency=low
+
+  * Cherry-picked from upstream:
+    - the Places and Applications tabs now caters for localized text
+      longer than the English ones (LP: #644275)
+  * debian/libunity0.symbols:
+    - updated for new symbols
+
+ -- Didier Roche <didrocks@ubuntu.com>  Fri, 01 Oct 2010 14:09:10 +0200
+
 unity (0.2.46-0ubuntu3) maverick; urgency=low
 
   * Cherry pick from upstream:
