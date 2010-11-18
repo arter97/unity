@@ -2,20 +2,18 @@ Source: unity
 Section: gnome
 Priority: optional
 Maintainer: Ubuntu Core Developers <ubuntu-devel-discuss@lists.ubuntu.com>
-Build-Depends: cdbs,
-               debhelper (>= 7),
+Build-Depends: cmake,
+               debhelper (>= 7.0.50~),
                pkg-config,
                valac (>= 0.7.8),
                intltool (>= 0.35.0),
                libgee-dev (>= 0.5.0),
                libunique-dev,
-               libclutter-1.0-dev,
-               libclutter-gtk-0.10-dev (>= 0.10.2-1ubuntu1),
-               libclutk-dev (>= 0.3.45),
                libbamf-dev (>= 0.2.32),
+               gsettings-desktop-schemas-dev,
+               libgconf2-dev,
                libglib2.0-dev (>= 2.22.2-0ubuntu1wncksync3),
                libdbusmenu-glib-dev (>= 0.3.6),
-               libgconf2-dev,
                libgnome-desktop-dev,
                libgtk2.0-dev (>= 2.18.0),
                libpango1.0-dev,
@@ -23,9 +21,14 @@ Build-Depends: cdbs,
                libdee-dev (>= 0.3.0),
                libindicator-dev (>= 0.3.14),
                libunity-misc-dev (>= 0.1.0),
-               libmutter-dev (>= 2.31.5),
                libutouch-grail-dev,
                libxcb-icccm1-dev,
+               libnux-0.9-dev (>= 0.9.4),
+               compiz-dev,
+               libcompizconfig0-dev,
+               xsltproc,
+               libboost1.42-dev,
+               libboost-serialization1.42-dev,
 Standards-Version: 3.9.1
 Homepage: https://launchpad.net/unity
 
@@ -33,7 +36,7 @@ Package: unity
 Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends},
-         mutter (>= 2.31.5),
+         compiz-core, compiz-core-abiversion-${coreabiversion},
          unity-asset-pool (>= 0.8.18)
 Provides: indicator-renderer,
           netbook-launcher
@@ -52,20 +55,20 @@ Recommends: unity-place-applications,
 Description: Unity Interface for Ubuntu Netbook Edition
  Unity is a graphical interface designed for Ubuntu Netbook Edition
 
-Package: unity-dbg
-Section: debug
-Architecture: any
-Priority: extra
-Depends: ${shlibs:Depends},
-         ${misc:Depends},
-         unity (= ${binary:Version})
-Replaces: libunity0-dbg (<< 0.2.6-0ubuntu1)
-Description: Unity Interface for Ubuntu Netbook Edition - debugging symbols
- Unity is a graphical interface designed for Ubuntu Netbook Edition
- .
- This package contains debugging symbols.
+#Package: unity-dbg
+#Section: debug
+#Architecture: any
+#Priority: extra
+#Depends: ${shlibs:Depends},
+#         ${misc:Depends},
+#         unity (= ${binary:Version})
+#Replaces: libunity0-dbg (<< 0.2.6-0ubuntu1)
+#Description: Unity Interface for Ubuntu Netbook Edition - debugging symbols
+# Unity is a graphical interface designed for Ubuntu Netbook Edition
+# .
+# This package contains debugging symbols.
 
-Package: libunity0
+Package: libunity3
 Section: libs
 Architecture: any
 Depends: ${shlibs:Depends},
@@ -80,15 +83,12 @@ Package: libunity-dev
 Section: libdevel
 Architecture: any
 Depends: ${misc:Depends},
-         libunity0 (= ${binary:Version}),
+         libunity3 (= ${binary:Version}),
          libglib2.0-dev,
          libdbus-glib-1-dev,
          libgtk2.0-dev,
-         libclutter-1.0-dev,
-         libclutter-gtk-0.10-dev,
          libdee-dev,
          libgee-dev,
-         libclutk-dev,
 Description: binding to get places into the launcher - development files
  libunity-places is a shared library to be able to interact with the launcher
  and add places in Unity environment.
@@ -101,4 +101,5 @@ Architecture: all
 Depends: unity, ${misc:Depends}
 Description: transitional package
  unity supersedes netbook-launcher. This package ensures a clean upgrade path,
- and can be safely removed after the upgrade. 
+ and can be safely removed after the upgrade.
+
