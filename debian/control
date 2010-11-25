@@ -23,12 +23,13 @@ Build-Depends: cmake,
                libunity-misc-dev (>= 0.1.0),
                libutouch-grail-dev,
                libxcb-icccm1-dev,
-               libnux-0.9-dev (>= 0.9.4),
+               libnux-0.9-dev (>= 0.9.6),
                compiz-dev,
                libcompizconfig0-dev,
                xsltproc,
                libboost1.42-dev,
                libboost-serialization1.42-dev,
+               libstartup-notification0-dev,
 Standards-Version: 3.9.1
 Homepage: https://launchpad.net/unity
 
@@ -51,9 +52,8 @@ Recommends: unity-place-applications,
             indicator-messages,
             indicator-me,
             indicator-session,
-            ubuntu-netbook-default-settings,
-Description: Unity Interface for Ubuntu Netbook Edition
- Unity is a graphical interface designed for Ubuntu Netbook Edition
+Description: Interface for Ubuntu Desktop Edition
+ Unity is a graphical interface designed for Ubuntu Desktop Edition
 
 #Package: unity-dbg
 #Section: debug

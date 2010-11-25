@@ -1,3 +1,35 @@
+unity (3.2.0-0ubuntu1) natty; urgency=low
+
+  * New upstream release:
+    - Clicking a second time on a menu item does not dismiss it (LP: #661048)
+    - FavoriteStore re-ordering support (LP: #676106)
+    - Quicklist menu item testing - part 1 (LP: #676030)
+    - Base Quicklist Menu Items (LP: #676013)
+    - Tooltip launcher don't appear in unity compiz (LP: #675486)
+    - The migration script should be migrated to gsettings
+      (LP: #680873, #652785, #655175)
+    - Launcher clickable-area does not extend to left edge of screen
+      (LP: #677573)
+    - The ws switcher is always visible if launcher in floating and autohide
+      mode (LP: #677554)
+    - add application startup notification (LP: #638319)
+    - Unity appears on top of gnome-screensaver (LP: #677705)
+    - launcher tooltips hover over gnome-screensaver (LP: #652937)
+  * debian/control:
+    - don't recommend ubuntu-netbook-default-settings anymore
+    - change the description
+    - bump build-dep on latest nux
+    - add libstartup-notification0-dev build-dep
+  * debian/rules:
+    - try a slighter best solution for netbook-launcher virtual package, thanks
+      geser
+  * debian/unity.install:
+    - no more gconf file to install
+  * debian/libunity3.symbols:
+    - updated to latest and greatest
+
+ -- Didier Roche <didrocks@ubuntu.com>  Thu, 25 Nov 2010 19:46:58 +0100
+
 unity (3.1.4-0ubuntu4) natty; urgency=low
 
   * debian/rules:
