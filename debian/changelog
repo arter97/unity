@@ -1,3 +1,19 @@
+unity (3.2.0-0ubuntu3) natty; urgency=low
+
+  * revert previous upload done which is breaking the gconf unity settings
+  * debian/source_unity.py:
+    - let apport collect the same as it does for compiz, it will provide 
+      details on xorg and drivers in use for example
+  * debian/unity.install:
+    - install the gconf file
+    - install source_unity.py
+  * debian/control:
+    - depends on new compiz and libcompiz version containing the gconf CMake fix
+  * debian/libunity3.symbols:
+    - add new exported symbols as places are installed in buildd
+
+ -- Didier Roche <didrocks@ubuntu.com>  Fri, 26 Nov 2010 20:34:58 +0100
+
 unity (3.2.0-0ubuntu2) natty; urgency=low
 
   * FTBFS: install gconf schemas to fix --fail-missing
