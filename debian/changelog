@@ -1,3 +1,14 @@
+unity (3.2.2-0ubuntu2) natty; urgency=low
+
+  * debian/control:
+    - Add Vcs-Bzr link
+  * debian/source:
+    - Use source version 3.0
+  * debian/patches/lp682345.patch:
+    - Fix crash on startup (LP: #682345)
+
+ -- Robert Ancell <robert.ancell@canonical.com>  Thu, 02 Dec 2010 10:00:40 +1100
+
 unity (3.2.2-0ubuntu1) natty; urgency=low
 
   * New upstream release:

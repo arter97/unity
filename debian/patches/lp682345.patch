@@ -1,0 +1,17 @@
+=== modified file 'src/Launcher.cpp'
+Index: unity/src/Launcher.cpp
+===================================================================
+--- unity.orig/src/Launcher.cpp	2010-12-02 09:56:30.000000000 +1100
++++ unity/src/Launcher.cpp	2010-12-02 10:04:11.581070000 +1100
+@@ -966,6 +966,11 @@
+                           nux::Geometry geo,
+                           bool render_indicators)
+ {
++  if ((icon == NULL) || icon->IsNull ())
++  {
++    return;
++  }
++
+   nux::Matrix4 ObjectMatrix;
+   nux::Matrix4 ViewMatrix;
+   nux::Matrix4 ProjectionMatrix;
