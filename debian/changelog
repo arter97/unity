@@ -1,3 +1,14 @@
+unity (3.2.6-0ubuntu2) natty; urgency=low
+
+  * debian/control:
+    - fix typo in description
+    - set nux-tools as a dep rather than recommends
+    - ensure we build/run with latest compiz-core (abi breakage)
+    - update Vcs-Bzr
+    - fix -common dep
+
+ -- Didier Roche <didrocks@ubuntu.com>  Mon, 13 Dec 2010 16:43:58 +0100
+
 unity (3.2.6-0ubuntu1) natty; urgency=low
 
   [ Didier Roche ]
