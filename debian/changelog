@@ -1,3 +1,19 @@
+unity (3.2.8-0ubuntu2) natty; urgency=low
+
+  * src/unityshell.cpp:
+    - backport a fix for WindowCompizid
+  * debian/control:
+    - ABI break in compiz, rebuild against latest version
+  * CMakeLists.txt, libunity/CMakeLists.txt:
+    - don't build some vala stuff
+  * debian/libunity3.symbols:
+    - refresh the symbols regarding to previous changes
+  * backport dbusmenu transition:
+    - debian/control: build-dep on the new package
+    - backport the commits
+
+ -- Didier Roche <didrocks@ubuntu.com>  Fri, 14 Jan 2011 01:22:00 +0100
+
 unity (3.2.8-0ubuntu1) natty; urgency=low
 
   * New upstream release:
