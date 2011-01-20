@@ -23,7 +23,7 @@ Build-Depends: cmake,
                libunity-misc-dev (>= 0.1.0),
                libutouch-grail-dev,
                libxcb-icccm1-dev,
-               libnux-0.9-dev (>= 0.9.12),
+               libnux-0.9-dev (>= 0.9.14),
                compiz-dev (>= 1:0.9.2.1+glibmainloop4),
                libcompizconfig0-dev (>= 0.9.2.1git101125),
                xsltproc,
@@ -56,6 +56,7 @@ Recommends: indicator-appmenu,
             indicator-messages,
             indicator-me,
             indicator-session,
+            ubuntuone-control-panel-gtk,
 Breaks: compiz-core (<< 1:0.9.2.1+glibmainloop3),
         bamf (<< 0.2.72),
 Description: Interface for Ubuntu Desktop Edition
@@ -84,33 +85,6 @@ Description: Common files for the interface for Ubuntu Desktop Edition
 # Unity is a graphical interface designed for Ubuntu Netbook Edition
 # .
 # This package contains debugging symbols.
-
-Package: libunity3
-Section: libs
-Architecture: any
-Depends: ${shlibs:Depends},
-         ${misc:Depends}
-Description: binding to get places into the launcher - shared library
- libunity-places is a shared library to be able to interact with the launcher
- and add places in Unity environment.
- .
- This package contains shared libraries to be used by applications.
-
-Package: libunity-dev
-Section: libdevel
-Architecture: any
-Depends: ${misc:Depends},
-         libunity3 (= ${binary:Version}),
-         libglib2.0-dev,
-         libdbus-glib-1-dev,
-         libgtk2.0-dev,
-         libdee-dev,
-         libgee-dev,
-Description: binding to get places into the launcher - development files
- libunity-places is a shared library to be able to interact with the launcher
- and add places in Unity environment.
- .
- This package contains files that are needed to build applications.
 
 Package: netbook-launcher
 Section: oldlibs
