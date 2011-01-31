@@ -1,3 +1,18 @@
+unity (3.4.0-0ubuntu1) natty; urgency=low
+
+  * New upstream release:
+    - Add places back to unity
+    - Add autoscroll to launcher (LP: #690096)
+    - Fix performance issue due to redecorate windows (LP: #705427)
+    - Change automaximize value to 75% of the workarea (LP: #708809)
+    - The launcher should not let you dnd special icons (LP: #709119)
+    - The launcher shouldn't move icon on right click dragging (LP: #709179)
+  * Cherry-pick a small fix for not having places empty at start
+  * debian/control:
+    - recommends again places now that unity can support them
+
+ -- Didier Roche <didrocks@ubuntu.com>  Mon, 31 Jan 2011 18:40:50 +0100
+
 unity (3.2.16-0ubuntu1) natty; urgency=low
 
   * New upstream release:
