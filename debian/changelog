@@ -1,3 +1,15 @@
+unity (4.2.0-0ubuntu1) oneiric; urgency=low
+
+  * New upstream release.
+  * debian/control:
+    - breaks against older compiz (those not doing gtk_init)
+  * debian/rules:
+    - ship the unitydialogs plugin (not networkarearegion as it seems to do
+      weird artefacts)
+    - bump libunity-core-4.0-4 shlib
+
+ -- Didier Roche <didrocks@ubuntu.com>  Mon, 04 Jul 2011 19:18:31 +0200
+
 unity (4.0.1-0ubuntu3) oneiric; urgency=low
 
   * Backport Neil's commit to migrate the indicator loaders to GTK3
