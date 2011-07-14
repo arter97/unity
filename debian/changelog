@@ -1,3 +1,13 @@
+unity (4.2.0-0ubuntu4) oneiric; urgency=low
+
+  * debian/control
+    - Dropped recommends for indicator-me
+    - Added recommends for indicator-power
+  * services/panel-service.c
+    - Removed libme.so and added libpower.so
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Thu, 14 Jul 2011 15:16:20 -0400
+
 unity (4.2.0-0ubuntu3) oneiric; urgency=low
 
   [ Chow Loong Jin ]
