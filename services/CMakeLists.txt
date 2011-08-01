@@ -39,7 +39,7 @@ set(CFLAGS
     "-DGETTEXT_PACKAGE=\"unity\""
     "-DINDICATORDIR=\"${_indicatordir}\""
     "-DINDICATORICONDIR=\"${_iconsdir}\""
-    "-Wall"
+    "-Werror -Wall"
     )
 add_definitions(${CFLAGS})
 
