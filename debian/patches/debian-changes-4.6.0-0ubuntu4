@@ -1,13 +1,15 @@
-Description: Upstream changes introduced in version 4.6.0-0ubuntu2
+Description: Upstream changes introduced in version 4.6.0-0ubuntu4
  This patch has been created by dpkg-source during the package build.
  Here's the last changelog entry, hopefully it gives details on why
  those changes were made:
  .
- unity (4.6.0-0ubuntu2) oneiric; urgency=low
+ unity (4.6.0-0ubuntu4) oneiric; urgency=low
  .
-   * debian/rules:
-     - remove networkarea and unitydialogs .so files are they are not in use for
-       now
+   * debian/control:
+     - remove the recommends on ubuntuone-control-panel-gtk now that
+       ubuntu-desktop recommends it.
+     - transition to boost 1.46
+     - dep on latest compiz-dev for boost transition
  .
  The person named in the Author field signed this changelog entry.
 Author: Didier Roche <didrocks@ubuntu.com>
