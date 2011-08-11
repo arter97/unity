@@ -26,7 +26,7 @@ Build-Depends: cmake,
                libunity-misc-dev (>= 4.0.4),
                libutouch-grail-dev (>= 1.0.20),
                libxcb-icccm1-dev,
-               libnux-1.0-dev (>= 1.0.8),
+               libnux-1.0-dev (>= 1.2.0),
                compiz-dev (>= 1:0.9.5.0-0ubuntu3),
                libcompizconfig0-dev (>= 0.9.2.1git101125),
                xsltproc,
@@ -35,8 +35,10 @@ Build-Depends: cmake,
                libnotify-dev,
                libstartup-notification0-dev,
                libatk1.0-dev,
+               libjson-glib-dev,
                libutouch-geis-dev (>= 2.0.10),
                libgnome-desktop-3-dev,
+               libunity-dev (>= 4.0.0~),
 Standards-Version: 3.9.2
 Homepage: https://launchpad.net/unity
 Vcs-Bzr: https://code.launchpad.net/~ubuntu-desktop/unity/ubuntu
@@ -58,8 +60,9 @@ Provides: indicator-renderer,
 Conflicts: netbook-launcher (<< 1:2.1.18-0ubuntu2)
 Replaces: netbook-launcher (<< 1:2.1.18-0ubuntu2),
           unity-common (<< 4.0.1-0ubuntu2~)
-Recommends: unity-place-applications,
-            unity-place-files,
+Recommends: unity-lens-applications,
+            unity-lens-files,
+            unity-lens-music,
             indicator-appmenu,
             indicator-application,
             indicator-sound,
@@ -133,6 +136,7 @@ Depends: ${misc:Depends},
          libglib2.0-dev,
          libsigc++-2.0-dev,
          libnux-1.0-dev (>= 1.0.2),
+         libunity-dev (>= 4.0.0~),
 Description: Core library for the Unity interface - development files
  Unity is a desktop experience that sings. Designed by Canonical and the Ayatana
  community, Unity is all about the combination of familiarity and the future. We
