@@ -1,0 +1,831 @@
+Description: Upstream changes introduced in version 4.8.0-0ubuntu2
+ This patch has been created by dpkg-source during the package build.
+ Here's the last changelog entry, hopefully it gives details on why
+ those changes were made:
+ .
+ unity (4.8.0-0ubuntu2) oneiric; urgency=low
+ .
+   * Backport r1371 to fix launcher autohidding issues
+ .
+ The person named in the Author field signed this changelog entry.
+Author: Sebastien Bacher <seb128@ubuntu.com>
+
+---
+The information above should follow the Patch Tagging Guidelines, please
+checkout http://dep.debian.net/deps/dep3/ to learn about the format. Here
+are templates for supplementary fields that you might want to add:
+
+Origin: <vendor|upstream|other>, <url of original patch>
+Bug: <url in upstream bugtracker>
+Bug-Debian: http://bugs.debian.org/<bugnumber>
+Bug-Ubuntu: https://launchpad.net/bugs/<bugnumber>
+Forwarded: <no|not-needed|url proving that it has been forwarded>
+Reviewed-By: <name and email of someone who approved the patch>
+Last-Update: <YYYY-MM-DD>
+
+--- unity-4.8.0.orig/tests/CMakeLists.txt
++++ unity-4.8.0/tests/CMakeLists.txt
+@@ -201,8 +201,13 @@ add_executable (test-switcher
+                 ${UNITY_SRC}/IconRenderer.cpp
+                 ${UNITY_SRC}/IconRenderer.h
+                 ${UNITY_SRC}/MockLauncherIcon.h
++                ${UNITY_SRC}/BackgroundEffectHelper.h
++                ${UNITY_SRC}/BackgroundEffectHelper.cpp
+                 ${UNITY_SRC}/StaticCairoText.cpp
+                 ${UNITY_SRC}/StaticCairoText.h
++                ${UNITY_SRC}/UBusMessages.h
++                ${UNITY_SRC}/ubus-server.cpp
++                ${UNITY_SRC}/ubus-server.h
+                 )
+ add_dependencies (test-switcher unity-core-${UNITY_API_VERSION})
+ 
+--- unity-4.8.0.orig/tests/TestSwitcher.cpp
++++ unity-4.8.0/tests/TestSwitcher.cpp
+@@ -120,6 +120,7 @@ void ThreadWidgetInit(nux::NThread* thre
+   nux::VLayout* layout = new nux::VLayout(TEXT(""), NUX_TRACKER_LOCATION);
+   
+   view = new SwitcherController();
++  view->blur = unity::BLUR_NONE;
+   view->timeout_length = 0;
+   view->SetWorkspace(nux::Geometry(0, 0, 900, 500));
+ 
+--- unity-4.8.0.orig/tests/standalone_dash.cpp
++++ unity-4.8.0/tests/standalone_dash.cpp
+@@ -95,6 +95,8 @@ int main(int argc, char **argv)
+   g_thread_init (NULL);
+   gtk_init (&argc, &argv);
+ 
++  unity::BGHash bghash;
++
+   nux::NuxInitialize(0);
+   nux::logging::configure_logging(::getenv("UNITY_LOG_SEVERITY"));
+ 
+--- unity-4.8.0.orig/services/CMakeLists.txt
++++ unity-4.8.0/services/CMakeLists.txt
+@@ -39,7 +39,7 @@ set(CFLAGS
+     "-DGETTEXT_PACKAGE=\"unity\""
+     "-DINDICATORDIR=\"${_indicatordir}\""
+     "-DINDICATORICONDIR=\"${_iconsdir}\""
+-    "-Werror -Wall"
++    "-Wall"
+     )
+ add_definitions(${CFLAGS})
+ 
+--- unity-4.8.0.orig/plugins/unityshell/src/DashView.cpp
++++ unity-4.8.0/plugins/unityshell/src/DashView.cpp
+@@ -445,8 +445,7 @@ void DashView::OnUriActivatedReply(std::
+     return;
+   }
+ 
+-  if (uri == last_activated_uri_)
+-    ubus_manager_.SendMessage(UBUS_PLACE_VIEW_CLOSE_REQUEST);
++  ubus_manager_.SendMessage(UBUS_PLACE_VIEW_CLOSE_REQUEST);
+ }
+ 
+ bool DashView::DoFallbackActivation(std::string const& fake_uri)
+@@ -454,14 +453,14 @@ bool DashView::DoFallbackActivation(std:
+   size_t pos = fake_uri.find(":");
+   std::string uri = fake_uri.substr(++pos);
+ 
+-  g_debug("Fallback launching: %s", uri.c_str());
++  LOG_DEBUG(logger) << "Fallback activating " << uri;
+ 
+-  if ((pos = uri.find("application://")))
++  if (g_str_has_prefix(uri.c_str(), "application://"))
+   {
+     std::string appname = uri.substr(14);
+     return LaunchApp(appname);
+   }
+-  else if ((pos = uri.find("unity-runner://")))
++  else if (g_str_has_prefix(uri.c_str(), "unity-runner://"))
+   {
+     std::string appname = uri.substr(15);
+     return LaunchApp(appname);
+@@ -479,7 +478,7 @@ bool DashView::LaunchApp(std::string con
+   char *id = g_strdup(appname.c_str());
+   int i = 0;
+ 
+-  g_debug("Launching: %s", appname.c_str());
++  LOG_DEBUG(logger) << "Launching " << appname;
+ 
+   while (id != NULL)
+   {
+--- unity-4.8.0.orig/plugins/unityshell/src/BGHash.h
++++ unity-4.8.0/plugins/unityshell/src/BGHash.h
+@@ -33,6 +33,7 @@ namespace unity
+     BGHash ();
+     ~BGHash ();
+ 
++    static gboolean ForceUpdate(BGHash *self);
+     void LoadFileToHash (const std::string path);
+     void LoadPixbufToHash (GdkPixbuf *pixbuf);
+     GdkPixbuf *GetPixbufFromBG ();
+--- unity-4.8.0.orig/plugins/unityshell/src/SwitcherController.cpp
++++ unity-4.8.0/plugins/unityshell/src/SwitcherController.cpp
+@@ -21,6 +21,9 @@
+ #include <Nux/Nux.h>
+ #include <Nux/HLayout.h>
+ 
++#include "UBusMessages.h"
++#include "ubus-server.h"
++
+ #include "SwitcherController.h"
+ 
+ namespace unity
+@@ -35,12 +38,29 @@ SwitcherController::SwitcherController()
+   ,  show_timer_(0)
+ {
+   timeout_length = 150;
++
++  blur = BLUR_ACTIVE;
++
++  UBusServer *ubus = ubus_server_get_default();
++  ubus_server_register_interest(ubus, UBUS_BACKGROUND_COLOR_CHANGED,
++                                (UBusCallback)&SwitcherController::OnBackgroundUpdate,
++                                this);
+ }
+ 
+ SwitcherController::~SwitcherController()
+ {
+ }
+ 
++void SwitcherController::OnBackgroundUpdate (GVariant *data, SwitcherController *self)
++{
++  gdouble red, green, blue, alpha;
++  g_variant_get(data, "(dddd)", &red, &green, &blue, &alpha);
++  self->bg_color_ = nux::Color (red, green, blue, alpha);
++
++  if (self->view_)
++    self->view_->background_color = self->bg_color_;
++}
++
+ void SwitcherController::Show(SwitcherController::ShowMode show, SwitcherController::SortMode sort, bool reverse, std::vector<AbstractLauncherIcon*> results)
+ {
+   if (sort == FOCUS_ORDER)
+@@ -81,6 +101,8 @@ void SwitcherController::ConstructView()
+ 
+   view_ = new SwitcherView();
+   view_->SetModel(model_);
++  view_->background_color = bg_color_;
++  view_->blur = blur();
+ 
+   layout->AddView(view_, 1);
+   layout->SetVerticalExternalMargin(0);
+--- unity-4.8.0.orig/plugins/unityshell/src/SwitcherController.h
++++ unity-4.8.0/plugins/unityshell/src/SwitcherController.h
+@@ -55,6 +55,7 @@ public:
+   virtual ~SwitcherController();
+ 
+   nux::Property<int> timeout_length;
++  nux::Property<BlurType> blur;
+ 
+   void Show(ShowMode show, SortMode sort, bool reverse, std::vector<AbstractLauncherIcon*> results);
+   void Hide();
+@@ -77,6 +78,8 @@ public:
+ private:
+   void ConstructView();
+ 
++  static void OnBackgroundUpdate (GVariant *data, SwitcherController *self);
++
+   SwitcherModel::Ptr model_;
+   SwitcherView* view_;
+ 
+@@ -86,6 +89,7 @@ private:
+ 
+   bool visible_;
+   guint show_timer_;
++  nux::Color bg_color_;
+ 
+   static gboolean OnShowTimer(gpointer data);
+ 
+--- unity-4.8.0.orig/plugins/unityshell/src/BGHash.cpp
++++ unity-4.8.0/plugins/unityshell/src/BGHash.cpp
+@@ -45,7 +45,7 @@ namespace unity {
+   {
+     background_monitor = gnome_bg_new ();
+     client = g_settings_new ("org.gnome.desktop.background");
+-    gnome_bg_load_from_preferences (background_monitor, client);
++
+ 
+     GdkPixbuf *pixbuf;
+     pixbuf = GetPixbufFromBG ();
+@@ -60,10 +60,14 @@ namespace unity {
+     signal_manager_.Add(
+       new glib::Signal<void, GSettings*, gchar*>(client,
+                                                  "changed",
+-                                                 sigc::mem_fun(this, &BGHash::OnGSettingsChanged))); 
++                                                 sigc::mem_fun(this, &BGHash::OnGSettingsChanged)));
+ 
+     UBusServer *ubus = ubus_server_get_default ();
+ 
++    gnome_bg_load_from_preferences (background_monitor, client);
++
++    g_timeout_add (0, (GSourceFunc)ForceUpdate, (gpointer)this);
++
+     // avoids making a new object method when all we are doing is
+     // calling a method with no logic
+     auto request_lambda =  [](GVariant *data, gpointer self) {
+@@ -72,6 +76,9 @@ namespace unity {
+     _ubus_handle_request_colour = ubus_server_register_interest (ubus, UBUS_BACKGROUND_REQUEST_COLOUR_EMIT,
+                                                                  (UBusCallback)request_lambda,
+                                                                   this);
++
++
++
+   }
+ 
+   BGHash::~BGHash ()
+@@ -82,6 +89,12 @@ namespace unity {
+     ubus_server_unregister_interest (ubus, _ubus_handle_request_colour);
+   }
+ 
++  gboolean BGHash::ForceUpdate (BGHash *self)
++  {
++    self->OnBackgroundChanged(self->background_monitor);
++    return FALSE;  
++  }
++
+   void BGHash::OnGSettingsChanged (GSettings *settings, gchar *key)
+   {
+     gnome_bg_load_from_preferences (background_monitor, settings);
+--- unity-4.8.0.orig/plugins/unityshell/src/LauncherHideMachine.cpp
++++ unity-4.8.0/plugins/unityshell/src/LauncherHideMachine.cpp
+@@ -84,8 +84,6 @@ LauncherHideMachine::SetShouldHide(bool
+ /* == Quick Quirk Reference : please keep up to date ==
+     LAUNCHER_HIDDEN        = 1 << 0, 1
+     MOUSE_OVER_LAUNCHER    = 1 << 1, 2
+-    MOUSE_OVER_BFB         = 1 << 2, 4
+-    MOUSE_OVER_TRIGGER     = 1 << 3, 8
+     QUICKLIST_OPEN         = 1 << 4, 16  #VISIBLE_REQUIRED
+     EXTERNAL_DND_ACTIVE    = 1 << 5, 32  #VISIBLE_REQUIRED
+     INTERNAL_DND_ACTIVE    = 1 << 6, 64  #VISIBLE_REQUIRED
+@@ -140,7 +138,7 @@ LauncherHideMachine::EnsureHideState(boo
+       hide_for_window = GetQuirk(ACTIVE_WINDOW_UNDER);
+ 
+     // if we activated AND we would hide because of a window, go ahead and do it
+-    if (GetQuirk(LAST_ACTION_ACTIVATE) && hide_for_window)
++    if (!_should_hide && GetQuirk(LAST_ACTION_ACTIVATE) && hide_for_window)
+     {
+       should_hide = true;
+       break;
+@@ -150,7 +148,7 @@ LauncherHideMachine::EnsureHideState(boo
+     HideQuirk _should_show_quirk;
+     if (GetQuirk(LAUNCHER_HIDDEN))
+     {
+-      _should_show_quirk = (HideQuirk)(VISIBLE_REQUIRED | MOUSE_OVER_TRIGGER);
++      _should_show_quirk = (HideQuirk)(VISIBLE_REQUIRED);
+ 
+       if (_show_on_edge)
+         _should_show_quirk = (HideQuirk)(_should_show_quirk | MOUSE_OVER_ACTIVE_EDGE);
+@@ -158,7 +156,7 @@ LauncherHideMachine::EnsureHideState(boo
+     }
+     else
+     {
+-      _should_show_quirk = (HideQuirk)(VISIBLE_REQUIRED | MOUSE_OVER_BFB);
++      _should_show_quirk = (HideQuirk)(VISIBLE_REQUIRED);
+       // mouse position over launcher is only taken into account if we move it after the revealing state
+       if (GetQuirk(MOUSE_MOVE_POST_REVEAL))
+         _should_show_quirk = (HideQuirk)(_should_show_quirk | MOUSE_OVER_LAUNCHER);
+@@ -216,7 +214,7 @@ LauncherHideMachine::SetQuirk(LauncherHi
+   bool skip = quirk & SKIP_DELAY_QUIRK && !GetQuirk(LAST_ACTION_ACTIVATE);
+ 
+   // but skip on last action if we were out of the launcher/bfb
+-  if (GetQuirk(LAST_ACTION_ACTIVATE) && !active && (quirk & (MOUSE_OVER_LAUNCHER | MOUSE_OVER_BFB)))
++  if (GetQuirk(LAST_ACTION_ACTIVATE) && !active && (quirk & (MOUSE_OVER_LAUNCHER)))
+     skip = true;
+ 
+   EnsureHideState(skip);
+--- unity-4.8.0.orig/plugins/unityshell/src/PanelView.h
++++ unity-4.8.0/plugins/unityshell/src/PanelView.h
+@@ -40,14 +40,6 @@
+ namespace unity
+ {
+ 
+-
+-enum BlurType
+-{
+-  BLUR_NONE,
+-  BLUR_STATIC,
+-  BLUR_ACTIVE
+-};
+-
+ class PanelView : public unity::Introspectable, public nux::View
+ {
+   NUX_DECLARE_OBJECT_TYPE(PanelView, nux::View);
+--- unity-4.8.0.orig/plugins/unityshell/src/BackgroundEffectHelper.h
++++ unity-4.8.0/plugins/unityshell/src/BackgroundEffectHelper.h
+@@ -26,6 +26,17 @@
+ #ifndef BACKGROUND_EFFECT_HELPER_H
+ #define BACKGROUND_EFFECT_HELPER_H
+ 
++namespace unity
++{
++
++enum BlurType
++{
++  BLUR_NONE,
++  BLUR_STATIC,
++  BLUR_ACTIVE
++};
++
++}
+ 
+ class BackgroundEffectHelper
+ {
+--- unity-4.8.0.orig/plugins/unityshell/src/Launcher.cpp
++++ unity-4.8.0/plugins/unityshell/src/Launcher.cpp
+@@ -289,21 +289,11 @@ Launcher::Launcher(nux::BaseWindow* pare
+                                                    this);
+ 
+   _ubus_handles[2] = ubus_server_register_interest(ubus,
+-                                                   UBUS_HOME_BUTTON_BFB_UPDATE,
+-                                                   (UBusCallback) &Launcher::OnBFBUpdate,
+-                                                   this);
+-
+-  _ubus_handles[3] = ubus_server_register_interest(ubus,
+                                                    UBUS_LAUNCHER_ACTION_DONE,
+                                                    (UBusCallback) &Launcher::OnActionDone,
+                                                    this);
+ 
+-  _ubus_handles[4] = ubus_server_register_interest(ubus,
+-                                                   UBUS_HOME_BUTTON_BFB_DND_ENTER,
+-                                                   (UBusCallback) &Launcher::OnBFBDndEnter,
+-                                                   this);
+-
+-  _ubus_handles[5] = ubus_server_register_interest (ubus,
++  _ubus_handles[3] = ubus_server_register_interest (ubus,
+                                                     UBUS_BACKGROUND_COLOR_CHANGED,
+                                                     (UBusCallback) &Launcher::OnBGColorChanged,
+                                                     this);
+@@ -543,32 +533,13 @@ void Launcher::SetStateMouseOverLauncher
+   _hide_machine->SetQuirk(LauncherHideMachine::MOUSE_OVER_LAUNCHER, over_launcher);
+   _hover_machine->SetQuirk(LauncherHoverMachine::MOUSE_OVER_LAUNCHER, over_launcher);
+ 
+-  if (over_launcher)
+-  {
+-    // avoid a race when the BFB doesn't see we are not over the trigger anymore
+-    _hide_machine->SetQuirk(LauncherHideMachine::MOUSE_OVER_TRIGGER, false);
+-  }
+-  else
++  if (!over_launcher)
+   {
+     // reset state for some corner case like x=0, show dash (leave event not received)
+     _hide_machine->SetQuirk(LauncherHideMachine::MOUSE_OVER_ACTIVE_EDGE, false);
+   }
+ }
+ 
+-void Launcher::SetStateMouseOverBFB(bool over_bfb)
+-{
+-  _hide_machine->SetQuirk(LauncherHideMachine::MOUSE_OVER_BFB, over_bfb);
+-  _hover_machine->SetQuirk(LauncherHoverMachine::MOUSE_OVER_BFB, over_bfb);
+-
+-  // the case where it's x=0 isn't important here as OnBFBUpdate() isn't triggered
+-  if (over_bfb)
+-    _hide_machine->SetQuirk(LauncherHideMachine::MOUSE_OVER_ACTIVE_EDGE, false);
+-  // event not received like: mouse over trigger, press super -> dash here, put mouse away from trigger,
+-  // click to close
+-  else
+-    _hide_machine->SetQuirk(LauncherHideMachine::MOUSE_OVER_TRIGGER, false);
+-}
+-
+ void Launcher::SetStateKeyNav(bool keynav_activated)
+ {
+   _hide_machine->SetQuirk(LauncherHideMachine::KEY_NAV_ACTIVE, keynav_activated);
+@@ -610,45 +581,13 @@ float Launcher::DragOutProgress(struct t
+ 
+ float Launcher::AutohideProgress(struct timespec const& current)
+ {
+-
+-  // bfb position progress. Go from GetAutohidePositionMin() -> GetAutohidePositionMax() linearly
+-  if (_hide_machine->GetQuirk(LauncherHideMachine::MOUSE_OVER_BFB) && _hidden)
+-  {
+-
+-    // Be evil, but safe: position based == removing all existing time-based autohide
+-    _times[TIME_AUTOHIDE].tv_sec = 0;
+-    _times[TIME_AUTOHIDE].tv_nsec = 0;
+-
+-    /*
+-     * most of the mouse movement should be done by the inferior part
+-     * of the launcher, so prioritize this one
+-     */
+-
+-    float _max_size_on_position;
+-    float position_on_border = _bfb_mouse_position.x * _bfb_height / _bfb_mouse_position.y;
+-
+-    if (position_on_border < _bfb_width)
+-      _max_size_on_position = pow(pow(position_on_border, 2) + pow(_bfb_height, 2), 0.5);
+-    else
+-    {
+-      position_on_border = _bfb_mouse_position.y * _bfb_width / _bfb_mouse_position.x;
+-      _max_size_on_position = pow(pow(position_on_border, 2) + pow(_bfb_width, 2), 0.5);
+-    }
+-
+-    float _position_min = GetAutohidePositionMin();
+-    return pow(pow(_bfb_mouse_position.x, 2) + pow(_bfb_mouse_position.y, 2), 0.5) / _max_size_on_position * (GetAutohidePositionMax() - _position_min) + _position_min;
+-  }
++  // time-based progress (full scale or finish the TRIGGER_AUTOHIDE_MIN -> 0.00f on bfb)
++  float animation_progress;
++  animation_progress = CLAMP((float)(TimeDelta(&current, &_times[TIME_AUTOHIDE])) / (float) ANIM_DURATION_SHORT, 0.0f, 1.0f);
++  if (_hidden)
++    return animation_progress;
+   else
+-  {
+-    // time-based progress (full scale or finish the TRIGGER_AUTOHIDE_MIN -> 0.00f on bfb)
+-    float animation_progress;
+-    animation_progress = CLAMP((float)(TimeDelta(&current, &_times[TIME_AUTOHIDE])) / (float) ANIM_DURATION_SHORT, 0.0f, 1.0f);
+-    if (_hidden)
+-      return animation_progress;
+-    else
+-      return 1.0f - animation_progress;
+-  }
+-
++    return 1.0f - animation_progress;
+ }
+ 
+ float Launcher::DragHideProgress(struct timespec const& current)
+@@ -1271,8 +1210,7 @@ void Launcher::RenderArgs(std::list<Rend
+   {
+ 
+     float autohide_progress = AutohideProgress(current) * (1.0f - DragOutProgress(current));
+-    if (_autohide_animation == FADE_ONLY
+-        || (_autohide_animation == FADE_OR_SLIDE && _hide_machine->GetQuirk(LauncherHideMachine::MOUSE_OVER_BFB)))
++    if (_autohide_animation == FADE_ONLY)
+       *launcher_alpha = 1.0f - autohide_progress;
+     else
+     {
+@@ -1516,9 +1454,6 @@ void Launcher::OnPlaceViewShown(GVariant
+       icon->SetQuirk(LauncherIcon::QUIRK_DESAT, true);
+     icon->HideTooltip();
+   }
+-
+-  // hack around issue in nux where leave events dont always come after a grab
+-  self->SetStateMouseOverBFB(false);
+ }
+ 
+ void Launcher::OnPlaceViewHidden(GVariant* data, void* val)
+@@ -1535,7 +1470,6 @@ void Launcher::OnPlaceViewHidden(GVarian
+   nux::Point pt = nux::GetWindowCompositor().GetMousePosition();
+ 
+   self->SetStateMouseOverLauncher(self->GetAbsoluteGeometry().IsInside(pt));
+-  self->SetStateMouseOverBFB(false);
+ 
+   // TODO: add in a timeout for seeing the animation (and make it smoother)
+   for (auto icon : *(self->_model))
+@@ -1544,63 +1478,6 @@ void Launcher::OnPlaceViewHidden(GVarian
+   }
+ }
+ 
+-void Launcher::OnBFBDndEnter(GVariant* data, gpointer user_data)
+-{
+-  Launcher* self = static_cast<Launcher*>(user_data);
+-  self->_hide_machine->SetQuirk(LauncherHideMachine::DND_PUSHED_OFF, false);
+-}
+-
+-void Launcher::OnBFBUpdate(GVariant* data, gpointer user_data)
+-{
+-  gchar*        prop_key;
+-  GVariant*     prop_value;
+-  GVariantIter* prop_iter;
+-  int x, y, bfb_width, bfb_height;
+-
+-  Launcher* self = (Launcher*)user_data;
+-
+-  g_variant_get(data, "(iiiia{sv})", &x, &y, &bfb_width, &bfb_height, &prop_iter);
+-  self->_bfb_mouse_position = nux::Point2(x, y);
+-
+-  bool inside_trigger_area = (pow(x, 2) + pow(y, 2) < TRIGGER_SQR_RADIUS) && x >= 0 && y >= 0;
+-  /*
+-   * if we are currently hidden and we are over the trigger, prepare the change
+-   * from a position-based move to a time-based one
+-   * Fake that we were currently hiding with a corresponding position of GetAutohidePositionMin ()
+-   * translated time-based so that we pick from the current position
+-   */
+-  if (inside_trigger_area && self->_hidden)
+-  {
+-    self->_hide_machine->SetQuirk(LauncherHideMachine::LAST_ACTION_ACTIVATE, false);
+-
+-    struct timespec current;
+-    clock_gettime(CLOCK_MONOTONIC, &current);
+-    self->_times[TIME_AUTOHIDE] = current;
+-    SetTimeBack(&(self->_times[TIME_AUTOHIDE]), ANIM_DURATION_SHORT * (1.0f - self->GetAutohidePositionMin()));
+-    SetTimeStruct(&(self->_times[TIME_AUTOHIDE]), &(self->_times[TIME_AUTOHIDE]), ANIM_DURATION_SHORT);
+-    self->_hide_machine->SetQuirk(LauncherHideMachine::MOUSE_MOVE_POST_REVEAL, true);
+-  }
+-  self->_hide_machine->SetQuirk(LauncherHideMachine::MOUSE_OVER_TRIGGER, inside_trigger_area);
+-
+-  self->_bfb_width = bfb_width;
+-  self->_bfb_height = bfb_height;
+-
+-  g_return_if_fail(prop_iter != NULL);
+-
+-  while (g_variant_iter_loop(prop_iter, "{sv}", &prop_key, &prop_value))
+-  {
+-    if (g_str_equal("hovered", prop_key))
+-    {
+-      self->SetStateMouseOverBFB(g_variant_get_boolean(prop_value));
+-      self->EnsureScrollTimer();
+-    }
+-  }
+-
+-  self->EnsureAnimation();
+-
+-  g_variant_iter_free(prop_iter);
+-}
+-
+ void Launcher::OnActionDone(GVariant* data, void* val)
+ {
+   Launcher* self = (Launcher*)val;
+@@ -1960,9 +1837,6 @@ void Launcher::SetHover(bool hovered)
+ 
+ bool Launcher::MouseOverTopScrollArea()
+ {
+-  if (GetActionState() == ACTION_NONE)
+-    return _hide_machine->GetQuirk(LauncherHideMachine::MOUSE_OVER_BFB);
+-
+   return _mouse_position.y < 0;
+ }
+ 
+--- unity-4.8.0.orig/plugins/unityshell/src/PanelMenuView.cpp
++++ unity-4.8.0/plugins/unityshell/src/PanelMenuView.cpp
+@@ -1138,7 +1138,7 @@ PanelMenuView::OnPanelViewMouseEnter(int
+       _is_inside = true;
+     FullRedraw();
+   }
+-
++  /* FIXME: Disabled pending design
+   GVariantBuilder builder;
+ 
+   g_variant_builder_init(&builder, G_VARIANT_TYPE("(iiiia{sv})"));
+@@ -1154,6 +1154,7 @@ PanelMenuView::OnPanelViewMouseEnter(int
+ 
+   UBusServer* ubus = ubus_server_get_default();
+   ubus_server_send_message(ubus, UBUS_HOME_BUTTON_BFB_UPDATE, g_variant_builder_end(&builder));
++  */
+ }
+ 
+ void
+@@ -1164,7 +1165,7 @@ PanelMenuView::OnPanelViewMouseLeave(int
+     _is_inside = false;
+     FullRedraw();
+   }
+-
++  /* FIXME: Disabled pending design
+   if (IsMouseInside())
+     return;
+ 
+@@ -1182,10 +1183,12 @@ PanelMenuView::OnPanelViewMouseLeave(int
+ 
+   UBusServer* ubus = ubus_server_get_default();
+   ubus_server_send_message(ubus, UBUS_HOME_BUTTON_BFB_UPDATE, g_variant_builder_end(&builder));
++  */
+ }
+ 
+ void PanelMenuView::OnPanelViewMouseMove(int x, int y, int dx, int dy, unsigned long mouse_button_state, unsigned long special_keys_state)
+ {
++  /* FIXME: Disabled pending design
+   GVariantBuilder builder;
+ 
+   g_variant_builder_init(&builder, G_VARIANT_TYPE("(iiiia{sv})"));
+@@ -1201,6 +1204,8 @@ void PanelMenuView::OnPanelViewMouseMove
+ 
+   UBusServer* ubus = ubus_server_get_default();
+   ubus_server_send_message(ubus, UBUS_HOME_BUTTON_BFB_UPDATE, g_variant_builder_end(&builder));
++  */
+ }
+ 
++
+ } // namespace unity
+--- unity-4.8.0.orig/plugins/unityshell/src/LauncherHideMachine.h
++++ unity-4.8.0/plugins/unityshell/src/LauncherHideMachine.h
+@@ -40,8 +40,6 @@ public:
+     DEFAULT                = 0,
+     LAUNCHER_HIDDEN        = 1 << 0,
+     MOUSE_OVER_LAUNCHER    = 1 << 1,
+-    MOUSE_OVER_BFB         = 1 << 2,
+-    MOUSE_OVER_TRIGGER     = 1 << 3,
+     QUICKLIST_OPEN         = 1 << 4,
+     EXTERNAL_DND_ACTIVE    = 1 << 5,
+     INTERNAL_DND_ACTIVE    = 1 << 6,
+--- unity-4.8.0.orig/plugins/unityshell/src/unityshell.cpp
++++ unity-4.8.0/plugins/unityshell/src/unityshell.cpp
+@@ -525,6 +525,8 @@ void UnityScreen::preparePaint(int ms)
+     dashController->window()->QueueDraw();
+     if (dash_is_open_)
+       panelController->QueueRedraw();
++    if (switcherController->GetView ())
++      switcherController->GetView ()->QueueDraw();
+   }
+ 
+   cScreen->preparePaint(ms);
+@@ -1177,6 +1179,7 @@ void UnityScreen::optionChanged(CompOpti
+     case UnityshellOptions::DashBlurExperimental:
+       PlacesSettings::GetDefault()->SetDashBlurType((PlacesSettings::DashBlurType)optionGetDashBlurExperimental());
+       panelController->SetBlurType((unity::BlurType)optionGetDashBlurExperimental());
++      switcherController->blur = (unity::BlurType)optionGetDashBlurExperimental();
+       break;
+     case UnityshellOptions::AutomaximizeValue:
+       PluginAdapter::Default()->SetCoverageAreaBeforeAutomaximize(optionGetAutomaximizeValue() / 100.0f);
+--- unity-4.8.0.orig/plugins/unityshell/src/Launcher.h
++++ unity-4.8.0/plugins/unityshell/src/Launcher.h
+@@ -256,7 +256,6 @@ private:
+   void SetMousePosition(int x, int y);
+ 
+   void SetStateMouseOverLauncher(bool over_launcher);
+-  void SetStateMouseOverBFB(bool over_bfb);
+   void SetStateKeyNav(bool keynav_activated);
+ 
+   bool MouseBeyondDragThreshold();
+@@ -334,8 +333,6 @@ private:
+   static void OnPlaceViewHidden(GVariant* data, void* val);
+   static void OnPlaceViewShown(GVariant* data, void* val);
+ 
+-  static void OnBFBUpdate(GVariant* data, gpointer user_data);
+-  static void OnBFBDndEnter(GVariant* data, gpointer user_data);
+   static void OnBGColorChanged (GVariant *data, void *val);
+ 
+   static void OnActionDone(GVariant* data, void* val);
+@@ -484,7 +481,7 @@ private:
+   GSettings* _settings;
+   guint32 _settings_changed_id;
+ 
+-  guint _ubus_handles[6];
++  guint _ubus_handles[4];
+ 
+   nux::Color _background_color;
+   bool _dash_is_open;
+--- unity-4.8.0.orig/plugins/unityshell/src/SwitcherView.h
++++ unity-4.8.0/plugins/unityshell/src/SwitcherView.h
+@@ -24,6 +24,7 @@
+ #include "AbstractIconRenderer.h"
+ #include "StaticCairoText.h"
+ #include "LayoutSystem.h"
++#include "BackgroundEffectHelper.h"
+ 
+ #include <boost/shared_ptr.hpp>
+ #include <sigc++/sigc++.h>
+@@ -59,7 +60,9 @@ public:
+   nux::Property<int> vertical_size;
+   nux::Property<int> text_size;
+   nux::Property<int> animation_length;
++  nux::Property<BlurType> blur;
+   nux::Property<double> spread_size;
++  nux::Property<nux::Color> background_color;
+ 
+ protected:
+   long ProcessEvent(nux::IEvent& ievent, long TraverseInfo, long ProcessEventInfo);
+@@ -106,6 +109,11 @@ private:
+   LayoutWindowList render_targets_;
+ 
+   timespec save_time_;
++
++  bool animation_draw_;
++
++  BackgroundEffectHelper bg_effect_helper_;
++  nux::ObjectPtr <nux::IOpenGLBaseTexture> bg_blur_texture_;
+ };
+ 
+ }
+--- unity-4.8.0.orig/plugins/unityshell/src/HomeView.cpp
++++ unity-4.8.0/plugins/unityshell/src/HomeView.cpp
+@@ -33,7 +33,7 @@ namespace dash
+ 
+ namespace
+ {
+-nux::logging::Logger logger("unity.dash.lensview");
++nux::logging::Logger logger("unity.dash.homeview");
+ }
+ 
+ NUX_IMPLEMENT_OBJECT_TYPE(HomeView);
+@@ -49,7 +49,7 @@ HomeView::HomeView()
+ 
+     for (auto group: categories_)
+     {
+-      group->SetVisible(search != "");
++      group->SetVisible(search != "" && counts_[group]);
+     }
+     home_view_->SetVisible(search == "");
+   });
+@@ -78,14 +78,13 @@ void HomeView::SetupViews()
+ 
+ void HomeView::AddLens(Lens::Ptr lens)
+ {
+-  if (!lens->search_in_global)
+-    return;
+-
+   lenses_.push_back(lens);
+ 
+   std::string name = lens->name;
+   std::string icon_hint = lens->icon_hint;
+ 
++  LOG_DEBUG(logger) << "Lens added " << name;
++
+   PlacesGroup* group = new PlacesGroup();
+   group->SetName(name.c_str());
+   group->SetIcon(icon_hint.c_str());
+--- unity-4.8.0.orig/plugins/unityshell/src/SwitcherView.cpp
++++ unity-4.8.0/plugins/unityshell/src/SwitcherView.cpp
+@@ -52,6 +52,10 @@ SwitcherView::SwitcherView(NUX_FILE_LINE
+   animation_length = 250;
+   spread_size = 3.5f;
+ 
++  animation_draw_ = false;
++
++  blur = BLUR_NONE;
++
+   save_time_.tv_sec = 0;
+   save_time_.tv_nsec = 0;
+ 
+@@ -412,6 +416,7 @@ gboolean SwitcherView::OnDrawTimeout(gpo
+   SwitcherView* self = static_cast<SwitcherView*>(data);
+ 
+   self->QueueDraw();
++  self->animation_draw_ = true;
+   self->redraw_handle_ = 0;
+   return FALSE;
+ }
+@@ -430,11 +435,6 @@ void SwitcherView::DrawContent(nux::Grap
+   nux::Geometry base = GetGeometry();
+   GfxContext.PushClippingRectangle(base);
+ 
+-  nux::ROPConfig ROP;
+-  ROP.Blend = false;
+-  ROP.SrcBlend = GL_ONE;
+-  ROP.DstBlend = GL_ONE_MINUS_SRC_ALPHA;
+-
+   // clear region
+   gPainter.PaintBackground(GfxContext, base);
+ 
+@@ -446,10 +446,49 @@ void SwitcherView::DrawContent(nux::Grap
+ 
+   gPainter.PaintTextureShape(GfxContext, background_geo, background_texture_, 30, 30, 30, 30, false);
+ 
+-  int internal_offset = 21;
+-  nux::Geometry internal_clip(background_geo.x + internal_offset, background_geo.y, background_geo.width - internal_offset * 2, background_geo.height);
++  // magic constant comes from texture contents (distance to cleared area)
++  const int internal_offset = 21;
++  nux::Geometry internal_clip(background_geo.x + internal_offset, 
++                              background_geo.y + internal_offset, 
++                              background_geo.width - internal_offset * 2, 
++                              background_geo.height - internal_offset * 2);
+   GfxContext.PushClippingRectangle(internal_clip);
+ 
++
++  nux::Geometry geo_absolute = GetAbsoluteGeometry ();
++  if (!bg_blur_texture_.IsValid() && blur != BLUR_NONE)
++  {
++    nux::Geometry blur_geo(geo_absolute.x, geo_absolute.y, base.width, base.height);
++    bg_blur_texture_ = bg_effect_helper_.GetBlurRegion(blur_geo, true);
++  }
++
++  if (bg_blur_texture_.IsValid() && blur != BLUR_NONE)
++  {
++    nux::TexCoordXForm texxform_blur_bg;
++    texxform_blur_bg.flip_v_coord = true;
++    texxform_blur_bg.SetTexCoordType(nux::TexCoordXForm::OFFSET_COORD);
++    texxform_blur_bg.uoffset = ((float) base.x) / geo_absolute.width;
++    texxform_blur_bg.voffset = ((float) base.y) / geo_absolute.height;
++
++    nux::ROPConfig rop;
++    rop.Blend = false;
++    rop.SrcBlend = GL_ONE;
++    rop.DstBlend = GL_ONE_MINUS_SRC_ALPHA;
++
++    gPainter.PushDrawTextureLayer(GfxContext, base,
++                                  bg_blur_texture_,
++                                  texxform_blur_bg,
++                                  nux::color::White,
++                                  true,
++                                  rop);
++  }
++
++  nux::ROPConfig rop;
++  rop.Blend = true;
++  rop.SrcBlend = GL_ONE;
++  rop.DstBlend = GL_ONE_MINUS_SRC_ALPHA;
++  gPainter.PushDrawColorLayer (GfxContext, internal_clip, background_color, false, rop);
++
+   icon_renderer_->PreprocessIcons(last_args_, base);
+ 
+   GfxContext.GetRenderStates().SetPremultipliedBlend(nux::SRC_OVER);
+@@ -472,9 +511,6 @@ void SwitcherView::DrawContent(nux::Grap
+   GfxContext.PopClippingRectangle();
+   GfxContext.PopClippingRectangle();
+ 
+-  // probably evil
+-  gPainter.PopBackground();
+-
+   text_view_->SetBaseY(background_geo.y + background_geo.height - 45);
+   text_view_->Draw(GfxContext, force_draw);
+ 
+@@ -482,6 +518,11 @@ void SwitcherView::DrawContent(nux::Grap
+ 
+   if (ms_since_change < animation_length)
+     redraw_handle_ = g_timeout_add(0, &SwitcherView::OnDrawTimeout, this);
++
++  if (blur == BLUR_ACTIVE && !animation_draw_)
++    bg_blur_texture_.Release();
++
++  animation_draw_ = false;
+ }
+ 
+ 
