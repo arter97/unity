@@ -1,14 +1,21 @@
-Description: Upstream changes introduced in version 4.8.0-0ubuntu2
+Description: Upstream changes introduced in version 4.8.0-0ubuntu3
  This patch has been created by dpkg-source during the package build.
  Here's the last changelog entry, hopefully it gives details on why
  those changes were made:
  .
- unity (4.8.0-0ubuntu2) oneiric; urgency=low
+ unity (4.8.0-0ubuntu3) oneiric; urgency=low
  .
-   * Backport r1371 to fix launcher autohidding issues
+   * Backport r1373 to fix a segfault happening on theme updates (lp: #825587)
+     (lp: #741652)
+   * Backport r1380 to fix an alt-tab switcher segfault (lp: #825148)
+   * Backport r1381 to fix a session start compiz segfault (lp: #825040)
  .
  The person named in the Author field signed this changelog entry.
 Author: Sebastien Bacher <seb128@ubuntu.com>
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/741652
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/825040
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/825148
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/825587
 
 ---
 The information above should follow the Patch Tagging Guidelines, please
@@ -248,6 +255,25 @@ Last-Update: <YYYY-MM-DD>
    void BGHash::OnGSettingsChanged (GSettings *settings, gchar *key)
    {
      gnome_bg_load_from_preferences (background_monitor, settings);
+--- unity-4.8.0.orig/plugins/unityshell/src/SimpleLauncherIcon.cpp
++++ unity-4.8.0/plugins/unityshell/src/SimpleLauncherIcon.cpp
+@@ -123,14 +123,9 @@ void SimpleLauncherIcon::ReloadIcon()
+ 
+ void SimpleLauncherIcon::OnIconThemeChanged(GtkIconTheme* icon_theme, gpointer data)
+ {
+-  SimpleLauncherIcon* self;
+-
+-  if (!data)
+-    return;
++  SimpleLauncherIcon* self = static_cast<SimpleLauncherIcon*>(data);
+ 
+   // invalidate the current cache
+-  _current_theme_is_mono = -1;
+-
+-  self = (SimpleLauncherIcon*) data;
++  self->_current_theme_is_mono = -1;
+   self->ReloadIcon();
+ }
 --- unity-4.8.0.orig/plugins/unityshell/src/LauncherHideMachine.cpp
 +++ unity-4.8.0/plugins/unityshell/src/LauncherHideMachine.cpp
 @@ -84,8 +84,6 @@ LauncherHideMachine::SetShouldHide(bool
@@ -617,7 +643,52 @@ Last-Update: <YYYY-MM-DD>
    }
  
    cScreen->preparePaint(ms);
-@@ -1177,6 +1179,7 @@ void UnityScreen::optionChanged(CompOpti
+@@ -992,25 +994,38 @@ const gchar* UnityScreen::GetName()
+ const CompWindowList& UnityScreen::getWindowPaintList()
+ {
+   CompWindowList& pl = _withRemovedNuxWindows = cScreen->getWindowPaintList();
+-  CompWindowList::iterator it = pl.end();
+-  CompWindowList::iterator begin = pl.begin();
++  CompWindowList::reverse_iterator it = pl.rbegin();
++  CompWindowList::reverse_iterator end = pl.rend();
+   std::vector<Window> const& xwns = nux::XInputWindow::NativeHandleList();
+ 
+   unsigned int size = xwns.size();
+ 
+-  while (it != begin)
++  while (it != end)
+   {
+-    --it;
+-
++    bool erased = false;
+     auto id = (*it)->id();
+     for (unsigned int i = 0; i < size; ++i)
+     {
+       if (xwns[i] == id)
+       {
+-        it = pl.erase(it);
++        /* Increment the reverse_iterator to ensure
++	       * it is valid, then it++ returns the old
++         * position */
++        CompWindowList::reverse_iterator oit = it++;
++        /* Get the base and offset by -1 since
++         * &*(reverse_iterator(i)) == &*(i - 1)) */
++        CompWindowList::iterator eit = --(oit.base ());
++
++        erased = true;
++
++        /* Remove that from the list */
++        pl.erase(eit);
+         break;
+       }
+     }
++
++    if (!erased)
++      it++;
+   }
+ 
+   return pl;
+@@ -1177,6 +1192,7 @@ void UnityScreen::optionChanged(CompOpti
      case UnityshellOptions::DashBlurExperimental:
        PlacesSettings::GetDefault()->SetDashBlurType((PlacesSettings::DashBlurType)optionGetDashBlurExperimental());
        panelController->SetBlurType((unity::BlurType)optionGetDashBlurExperimental());
@@ -807,7 +878,7 @@ Last-Update: <YYYY-MM-DD>
    icon_renderer_->PreprocessIcons(last_args_, base);
  
    GfxContext.GetRenderStates().SetPremultipliedBlend(nux::SRC_OVER);
-@@ -472,9 +511,6 @@ void SwitcherView::DrawContent(nux::Grap
+@@ -472,16 +511,18 @@ void SwitcherView::DrawContent(nux::Grap
    GfxContext.PopClippingRectangle();
    GfxContext.PopClippingRectangle();
  
@@ -817,9 +888,10 @@ Last-Update: <YYYY-MM-DD>
    text_view_->SetBaseY(background_geo.y + background_geo.height - 45);
    text_view_->Draw(GfxContext, force_draw);
  
-@@ -482,6 +518,11 @@ void SwitcherView::DrawContent(nux::Grap
+   int ms_since_change = DeltaTTime(&current, &save_time_);
  
-   if (ms_since_change < animation_length)
+-  if (ms_since_change < animation_length)
++  if (ms_since_change < animation_length && redraw_handle_ == 0)
      redraw_handle_ = g_timeout_add(0, &SwitcherView::OnDrawTimeout, this);
 +
 +  if (blur == BLUR_ACTIVE && !animation_draw_)
