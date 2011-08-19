@@ -1,25 +1,14 @@
-Description: Upstream changes introduced in version 4.8.2-0ubuntu3
+Description: Upstream changes introduced in version 4.8.2-0ubuntu4
  This patch has been created by dpkg-source during the package build.
  Here's the last changelog entry, hopefully it gives details on why
  those changes were made:
  .
- unity (4.8.2-0ubuntu3) oneiric; urgency=low
+ unity (4.8.2-0ubuntu4) oneiric; urgency=low
  .
-   * Update to current trunk to get closer from an usable version, including
-     - improvements to the alt-tab switcher, fixing the performances issues
-       on intel cards, thanks Jason Smith
-     - reworked dnd code fixing launcher showing when dragging text(lp: #773028)
-       or widgets (lp: #724986), the expose slowness (lp: #821538) and other
-       bugs as well, thanks Andrea Azzarone
-     - the dash text is selected by default allow to type directly a new command
-       (lp: #826904)
+   * Backport another trunk commit to fix an alt-tab segfault
  .
  The person named in the Author field signed this changelog entry.
 Author: Sebastien Bacher <seb128@ubuntu.com>
-Bug-Ubuntu: https://bugs.launchpad.net/bugs/724986
-Bug-Ubuntu: https://bugs.launchpad.net/bugs/773028
-Bug-Ubuntu: https://bugs.launchpad.net/bugs/821538
-Bug-Ubuntu: https://bugs.launchpad.net/bugs/826904
 
 ---
 The information above should follow the Patch Tagging Guidelines, please
@@ -316,20 +305,19 @@ Last-Update: <YYYY-MM-DD>
    view_window_->ShowWindow(true);
  }
  
-@@ -183,12 +185,10 @@ void SwitcherController::Hide(bool accep
+@@ -183,12 +185,11 @@ void SwitcherController::Hide(bool accep
    model_.reset();
    visible_ = false;
  
--  if (view_window_)
--  {
--    view_window_->ShowWindow(false);
--    view_window_->UnReference();
--    view_window_ = 0;
--  }
 +  if (view_)
 +    main_layout_->RemoveChildObject(view_);
 +
-+  view_window_->ShowWindow(false);
+   if (view_window_)
+-  {
+     view_window_->ShowWindow(false);
+-    view_window_->UnReference();
+-    view_window_ = 0;
+-  }
  
    if (show_timer_)
      g_source_remove(show_timer_);
