@@ -1,0 +1,279 @@
+Description: Upstream changes introduced in version 4.10.2-0ubuntu2
+ This patch has been created by dpkg-source during the package build.
+ Here's the last changelog entry, hopefully it gives details on why
+ those changes were made:
+ .
+ unity (4.10.2-0ubuntu2) oneiric; urgency=low
+ .
+   * Backported some fixes from trunk:
+     - build fix for armel (lp: #834576)
+     - dnd from the application lens to the launcher work
+     - small screen dash improvements
+ .
+ The person named in the Author field signed this changelog entry.
+Author: Sebastien Bacher <seb128@ubuntu.com>
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/834576
+
+---
+The information above should follow the Patch Tagging Guidelines, please
+checkout http://dep.debian.net/deps/dep3/ to learn about the format. Here
+are templates for supplementary fields that you might want to add:
+
+Origin: <vendor|upstream|other>, <url of original patch>
+Bug: <url in upstream bugtracker>
+Bug-Debian: http://bugs.debian.org/<bugnumber>
+Bug-Ubuntu: https://launchpad.net/bugs/<bugnumber>
+Forwarded: <no|not-needed|url proving that it has been forwarded>
+Reviewed-By: <name and email of someone who approved the patch>
+Last-Update: <YYYY-MM-DD>
+
+--- unity-4.10.2.orig/services/CMakeLists.txt
++++ unity-4.10.2/services/CMakeLists.txt
+@@ -39,7 +39,7 @@ set(CFLAGS
+     "-DGETTEXT_PACKAGE=\"unity\""
+     "-DINDICATORDIR=\"${_indicatordir}\""
+     "-DINDICATORICONDIR=\"${_iconsdir}\""
+-    "-Werror -Wall"
++    "-Wall"
+     )
+ add_definitions(${CFLAGS})
+ 
+--- unity-4.10.2.orig/po/POTFILES.in
++++ unity-4.10.2/po/POTFILES.in
+@@ -1,11 +1,23 @@
+ plugins/unityshell/src/BamfLauncherIcon.cpp
+ plugins/unityshell/src/DeviceLauncherIcon.cpp
+ plugins/unityshell/src/LauncherController.cpp
+-plugins/unityshell/src/PlaceLauncherIcon.cpp
+-plugins/unityshell/src/PlaceEntryHome.cpp
+-plugins/unityshell/src/PlaceEntryRemote.cpp
+ plugins/unityshell/src/PlacesGroup.cpp
+ plugins/unityshell/src/PlacesHomeView.cpp
+ plugins/unityshell/src/SpacerLauncherIcon.cpp
+ plugins/unityshell/src/TrashLauncherIcon.cpp
++plugins/unityshell/src/BFBLauncherIcon.cpp
++plugins/unityshell/src/DashSearchBar.cpp
++plugins/unityshell/src/DashView.cpp
++plugins/unityshell/src/DesktopLauncherIcon.cpp
++plugins/unityshell/src/FilterExpanderLabel.cpp
++plugins/unityshell/src/FilterGenreWidget.cpp
++plugins/unityshell/src/FilterMultiRangeWidget.cpp
++plugins/unityshell/src/FilterRatingsWidget.cpp
++plugins/unityshell/src/PreviewMusic.cpp
++plugins/unityshell/src/PreviewMusicTrack.cpp
++plugins/unityshell/src/unity-launcher-accessible.cpp
++plugins/unityshell/src/unity-places-view-accessible.cpp
++plugins/unityshell/src/unity-search-bar-accessible.cpp
++plugins/unityshell/src/unityshell.cpp
++plugins/unityshell/unityshell.xml.in
+ tools/unity-preferences.c
+--- unity-4.10.2.orig/plugins/unityshell/src/DashView.cpp
++++ unity-4.10.2/plugins/unityshell/src/DashView.cpp
+@@ -95,7 +95,7 @@ void DashView::SetupViews()
+   SetLayout(layout_);
+ 
+   content_layout_ = new nux::VLayout();
+-  layout_->AddLayout(content_layout_, 1, nux::MINOR_POSITION_LEFT, nux::MINOR_SIZE_FIX); 
++  layout_->AddLayout(content_layout_, 1, nux::MINOR_POSITION_LEFT, nux::MINOR_SIZE_FIX);
+   search_bar_ = new SearchBar();
+   search_bar_->activated.connect(sigc::mem_fun(this, &DashView::OnEntryActivated));
+   search_bar_->search_changed.connect(sigc::mem_fun(this, &DashView::OnSearchChanged));
+@@ -129,13 +129,18 @@ void DashView::Relayout()
+   DashSettings* settings = DashSettings::GetDefault();
+   nux::Geometry geo = GetGeometry();
+   content_geo_ = GetBestFitGeometry(geo);
+-    
++
+   if (settings->GetFormFactor() == DashSettings::NETBOOK)
+   {
+     if (geo.width >= content_geo_.width && geo.height > content_geo_.height)
+       content_geo_ = geo;
+   }
+ 
++  // kinda hacky, but it makes sure the content isn't so big that it throws
++  // the bottom of the dash off the screen
++  // not hugely happy with this, so FIXME
++  lenses_layout_->SetMaximumHeight (content_geo_.height - search_bar_->GetGeometry().height - lens_bar_->GetGeometry().height);
++
+   content_layout_->SetMinMaxSize(content_geo_.width, content_geo_.height);
+ 
+   PlacesStyle* style = PlacesStyle::GetDefault();
+@@ -153,7 +158,7 @@ nux::Geometry DashView::GetBestFitGeomet
+   int tile_width = style->GetTileWidth();
+   int tile_height = style->GetTileHeight();
+   int half = for_geo.width / 2;
+-  
++
+   while ((width += tile_width) < half)
+     ;
+ 
+@@ -168,6 +173,7 @@ nux::Geometry DashView::GetBestFitGeomet
+     width = MIN(width, for_geo.width-66);
+     height = MIN(height, for_geo.height-24);
+   }
++
+   return nux::Geometry(0, 0, width, height);
+ }
+ 
+@@ -282,7 +288,7 @@ void DashView::Draw(nux::GraphicsEngine&
+         texxform.SetTexCoordType(nux::TexCoordXForm::OFFSET_COORD);
+         texxform.SetWrap(nux::TEXWRAP_CLAMP_TO_BORDER, nux::TEXWRAP_CLAMP_TO_BORDER);
+ 
+-        gfx_context.QRP_1Tex(geo.x - left_corner_offset, 
++        gfx_context.QRP_1Tex(geo.x - left_corner_offset,
+                             geo.y + (geo.height - left_corner->GetHeight()),
+                             left_corner->GetWidth(),
+                             left_corner->GetHeight(),
+@@ -312,7 +318,7 @@ void DashView::Draw(nux::GraphicsEngine&
+         texxform.SetTexCoordType(nux::TexCoordXForm::OFFSET_COORD);
+         texxform.SetWrap(nux::TEXWRAP_CLAMP_TO_BORDER, nux::TEXWRAP_CLAMP_TO_BORDER);
+ 
+-        gfx_context.QRP_1Tex(geo.x - left_corner_offset, 
++        gfx_context.QRP_1Tex(geo.x - left_corner_offset,
+                             geo.y + (geo.height - left_corner->GetHeight()),
+                             left_corner->GetWidth(),
+                             left_corner->GetHeight(),
+@@ -338,7 +344,7 @@ void DashView::Draw(nux::GraphicsEngine&
+         texxform.SetTexCoordType(nux::TexCoordXForm::OFFSET_COORD);
+         texxform.SetWrap(nux::TEXWRAP_CLAMP_TO_BORDER, nux::TEXWRAP_CLAMP_TO_BORDER);
+ 
+-        gfx_context.QRP_1Tex(geo.x + geo.width - right->GetWidth(), 
++        gfx_context.QRP_1Tex(geo.x + geo.width - right->GetWidth(),
+                             geo.y - top_corner_offset,
+                             top_corner->GetWidth(),
+                             top_corner->GetHeight(),
+@@ -532,7 +538,7 @@ void DashView::OnLensBarActivated(std::s
+   search_bar_->text_entry()->SelectAll();
+   search_bar_->text_entry()->SetFocused(true);
+   nux::GetWindowCompositor().SetKeyFocusArea(search_bar_->text_entry());
+-  
++
+   view->QueueDraw();
+   QueueDraw();
+ }
+--- unity-4.10.2.orig/plugins/unityshell/src/minimizedwindowhandler.cpp
++++ unity-4.10.2/plugins/unityshell/src/minimizedwindowhandler.cpp
+@@ -94,7 +94,7 @@ compiz::MinimizedWindowHandler::minimize
+   Atom          actualType;
+   int           actualFormat;
+   unsigned long nItems, nLeft;
+-  char          *prop;
++  void          *prop;
+   unsigned long data[2];
+   Window        root = DefaultRootWindow (priv->mDpy), parent = priv->mXid, lastParent = priv->mXid;
+   Window        *children;
+@@ -175,7 +175,7 @@ compiz::MinimizedWindowHandler::unminimi
+   Atom          actualType;
+   int           actualFormat;
+   unsigned long nItems, nLeft;
+-  char          *prop;
++  void          *prop;
+   unsigned long data[2];
+   Window        root = DefaultRootWindow (priv->mDpy), parent = priv->mXid, lastParent = priv->mXid;
+   Window        *children;
+--- unity-4.10.2.orig/plugins/unityshell/src/transientfor.cpp
++++ unity-4.10.2/plugins/unityshell/src/transientfor.cpp
+@@ -44,10 +44,10 @@ compiz::X11TransientForReader::getAncest
+   unsigned long nItems, nLeft;
+   int           actualFormat;
+   Atom          actualType;
+-  unsigned char *prop;
++  void          *prop;
+ 
+   if (XGetWindowProperty (priv->mDpy, priv->mXid, wmTransientFor, 0L, 2L, false,
+-                          XA_WINDOW, &actualType, &actualFormat, &nItems, &nLeft, &prop) == Success)
++                          XA_WINDOW, &actualType, &actualFormat, &nItems, &nLeft, (unsigned char **)&prop) == Success)
+   {
+     if (actualType == XA_WINDOW && actualFormat == 32 && nLeft == 0 && nItems == 1)
+     {
+@@ -76,12 +76,12 @@ compiz::X11TransientForReader::isGroupTr
+   unsigned long nItems, nLeft;
+   int           actualFormat;
+   Atom          actualType;
+-  unsigned char *prop;
++  void          *prop;
+   std::vector<std::string> strings;
+   std::list<Atom>   atoms;
+ 
+   if (XGetWindowProperty (priv->mDpy, priv->mXid, wmClientLeader, 0L, 2L, false,
+-                          XA_WINDOW, &actualType, &actualFormat, &nItems, &nLeft, &prop) == Success)
++                          XA_WINDOW, &actualType, &actualFormat, &nItems, &nLeft, (unsigned char **)&prop) == Success)
+   {
+     if (actualType == XA_WINDOW && actualFormat == 32 && nLeft == 0 && nItems == 1)
+     {
+@@ -119,7 +119,7 @@ compiz::X11TransientForReader::isGroupTr
+       * should consider to be part of a window group by this client leader */
+ 
+ 	    if (XGetWindowProperty (priv->mDpy, priv->mXid, wmWindowType, 0L, 15L, false,
+-                              XA_ATOM, &actualType, &actualFormat, &nItems, &nLeft, &prop) == Success)
++                              XA_ATOM, &actualType, &actualFormat, &nItems, &nLeft, (unsigned char **)&prop) == Success)
+       {
+         if (actualType == XA_ATOM && actualFormat == 32 && nLeft == 0 && nItems)
+         {
+@@ -148,7 +148,7 @@ compiz::X11TransientForReader::getTransi
+   int           actualFormat;
+   Atom          actualType;
+   Atom          wmClientList;
+-  unsigned char *prop;
++  void          *prop;
+   std::vector<unsigned int>   transients;
+   std::vector<Window>   clientList;
+ 
+@@ -156,7 +156,7 @@ compiz::X11TransientForReader::getTransi
+ 
+   if (XGetWindowProperty (priv->mDpy, DefaultRootWindow (priv->mDpy), wmClientList, 0L, 512L, false,
+                           XA_WINDOW, &actualType, &actualFormat, &nItems, &nLeft,
+-                          &prop) == Success)
++                          (unsigned char **)&prop) == Success)
+   {
+     if (actualType == XA_WINDOW && actualFormat == 32 && nItems && !nLeft)
+     {
+--- unity-4.10.2.orig/plugins/unityshell/src/ResultViewGrid.cpp
++++ unity-4.10.2/plugins/unityshell/src/ResultViewGrid.cpp
+@@ -544,18 +544,20 @@ uint ResultViewGrid::GetIndexAtPosition(
+ bool
+ ResultViewGrid::DndSourceDragBegin()
+ {
+-  Reference();
+-  ubus_server_send_message(ubus_server_get_default(),
+-                           UBUS_PLACE_VIEW_CLOSE_REQUEST,
+-                           NULL);
++
+   uint drag_index = GetIndexAtPosition(last_mouse_down_x_, last_mouse_down_y_);
+ 
+   if (drag_index >= results_.size())
+     return false;
+ 
++  Reference();
++  ubus_server_send_message(ubus_server_get_default(),
++                           UBUS_PLACE_VIEW_CLOSE_REQUEST,
++                           NULL);
++
+   Result drag_result = results_[drag_index];
+-  
+-  std::string current_drag_uri_ = drag_result.dnd_uri;
++
++  current_drag_uri_ = drag_result.dnd_uri;
+   if (current_drag_uri_ == "")
+     current_drag_uri_ = drag_result.uri().substr(drag_result.uri().find(":") + 1);
+ 
+@@ -565,7 +567,7 @@ ResultViewGrid::DndSourceDragBegin()
+                      last_mouse_down_x_ << ", " << last_mouse_down_y_ << " - using; "
+                      << current_drag_uri_ << " - "
+                      << current_drag_icon_name_;
+-  
++
+   return true;
+ }
+ 
+--- unity-4.10.2.orig/plugins/unityshell/src/DashStyle.cpp
++++ unity-4.10.2/plugins/unityshell/src/DashStyle.cpp
+@@ -1702,7 +1702,7 @@ namespace unity
+                  h / 4.0,
+                  w - 4.0,
+                  h - 4.0,
+-                 true);
++                 false);
+ 
+     if (_buttonLabelFillOpacity[state] != 0.0)
+     {
