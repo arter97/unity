@@ -1,0 +1,309 @@
+Description: Upstream changes introduced in version 4.14.2-0ubuntu2
+ This patch has been created by dpkg-source during the package build.
+ Here's the last changelog entry, hopefully it gives details on why
+ those changes were made:
+ .
+ unity (4.14.2-0ubuntu2) oneiric; urgency=low
+ .
+   * Cherry-pick a fix for remapping minimized window correctly (LP: #840285)
+   * debian/control:
+     - bump build-dep for latest compiz-dev ABI break
+ .
+ The person named in the Author field signed this changelog entry.
+Author: Didier Roche <didrocks@ubuntu.com>
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/840285
+
+---
+The information above should follow the Patch Tagging Guidelines, please
+checkout http://dep.debian.net/deps/dep3/ to learn about the format. Here
+are templates for supplementary fields that you might want to add:
+
+Origin: <vendor|upstream|other>, <url of original patch>
+Bug: <url in upstream bugtracker>
+Bug-Debian: http://bugs.debian.org/<bugnumber>
+Bug-Ubuntu: https://launchpad.net/bugs/<bugnumber>
+Forwarded: <no|not-needed|url proving that it has been forwarded>
+Reviewed-By: <name and email of someone who approved the patch>
+Last-Update: <YYYY-MM-DD>
+
+--- unity-4.14.2.orig/services/CMakeLists.txt
++++ unity-4.14.2/services/CMakeLists.txt
+@@ -39,7 +39,7 @@ set(CFLAGS
+     "-DGETTEXT_PACKAGE=\"unity\""
+     "-DINDICATORDIR=\"${_indicatordir}\""
+     "-DINDICATORICONDIR=\"${_iconsdir}\""
+-    "-Werror -Wall"
++    "-Wall"
+     )
+ add_definitions(${CFLAGS})
+ 
+--- unity-4.14.2.orig/plugins/unityshell/src/inputremover.h
++++ unity-4.14.2/plugins/unityshell/src/inputremover.h
+@@ -41,6 +41,9 @@ public:
+   bool restore ();
+ 
+ private:
++
++  void sendShapeNotify ();
++
+   Display       *mDpy;
+   Window        mShapeWindow;
+   unsigned long mShapeMask;
+@@ -52,7 +55,7 @@ private:
+   XRectangle    *mBoundingRects;
+   int           mNBoundingRects;
+   int           mBoundingRectOrdering;
+-  bool	  mRemoved;
++  bool          mRemoved;
+ 
+ };
+ }
+--- unity-4.14.2.orig/plugins/unityshell/src/compizminimizedwindowhandler.h
++++ unity-4.14.2/plugins/unityshell/src/compizminimizedwindowhandler.h
+@@ -37,7 +37,6 @@ public:
+   PrivateCompizMinimizedWindowHandler () {};
+ 
+   CompWindow         *mWindow;
+-  WindowInputRemover *clientInputRemover;
+ };
+ 
+ template <typename Screen, typename Window>
+@@ -87,7 +86,6 @@ compiz::CompizMinimizedWindowHandler<Scr
+   priv = new PrivateCompizMinimizedWindowHandler ();
+ 
+   priv->mWindow = w;
+-  priv->clientInputRemover = NULL;
+ 
+ }
+ 
+@@ -115,33 +113,7 @@ template <typename Screen, typename Wind
+ void
+ compiz::CompizMinimizedWindowHandler<Screen, Window>::setVisibility (bool visible)
+ {
+-  CompWindow::Geometry gm = priv->mWindow->geometry ();
+-  MinimizedWindowHandler::setVisibility (visible, ROOTPARENT (priv->mWindow));
+-
+-  if (!visible && !priv->clientInputRemover)
+-  {
+-    priv->clientInputRemover = new compiz::WindowInputRemover (screen->dpy (), priv->mWindow->id ());
+-    if (!priv->clientInputRemover)
+-      return;
+-
+-    if (priv->clientInputRemover->save ())
+-      priv->clientInputRemover->remove ();
+-  }
+-  else if (visible && priv->clientInputRemover)
+-  {
+-    priv->clientInputRemover->restore ();
+-
+-    delete priv->clientInputRemover;
+-    priv->clientInputRemover = NULL;
+-  }
+-
+-  /* This is a little hack to ensure that the window region gets updated,
+-   * because there's no API in core to do that */
+-
+-  gm.setBorder (gm.border () + 1);
+-  priv->mWindow->resize (gm);
+-  gm.setBorder (gm.border () - 1);
+-  priv->mWindow->resize (gm);
++  MinimizedWindowHandler::setVisibility (visible, priv->mWindow->id ());
+ 
+   CompositeWindow::get (priv->mWindow)->addDamage ();
+   GLWindow::get (priv->mWindow)->glPaintSetEnabled (Window::get (priv->mWindow), !visible);
+@@ -285,8 +257,10 @@ template <typename Screen, typename Wind
+ void
+ compiz::CompizMinimizedWindowHandler<Screen, Window>::handleEvent (XEvent *event)
+ {
++  /* Ignore sent events from the InputRemover */
+   if (screen->XShape () && event->type ==
+-      screen->shapeEvent () + ShapeNotify)
++      screen->shapeEvent () + ShapeNotify &&
++      !event->xany.send_event)
+   {
+     CompWindow *w = screen->findWindow (((XShapeEvent *) event)->window);
+ 
+--- unity-4.14.2.orig/plugins/unityshell/src/inputremover.cpp
++++ unity-4.14.2/plugins/unityshell/src/inputremover.cpp
+@@ -20,6 +20,7 @@
+  */
+ 
+ #include "inputremover.h"
++#include <X11/Xregion.h>
+ #include <cstdio>
+ 
+ compiz::WindowInputRemover::WindowInputRemover (Display *dpy,
+@@ -43,6 +44,132 @@ compiz::WindowInputRemover::~WindowInput
+     restore ();
+ }
+ 
++void
++compiz::WindowInputRemover::sendShapeNotify ()
++{
++  /* Send a synthetic ShapeNotify event to the root window
++   * since we ignored shape events when setting visibility
++   * in order to avoid cycling in the shape handling code -
++   * ignore the sent shape notify event since that will
++   * be send_event = true */
++
++  XShapeEvent  xsev;
++  XEvent       *xev = (XEvent *) &xsev;
++  Window       rootReturn, parentReturn;
++  Window       childReturn;
++  Window       *children;
++  int          x, y, xOffset, yOffset;
++  unsigned int width, height, depth, border, nchildren;
++  int          shapeEvent, shapeError, shapeMask;
++
++  /* FIXME: roundtrip */
++  XShapeQueryExtension (mDpy, &shapeEvent, &shapeError);
++  shapeMask = XShapeInputSelected (mDpy, mShapeWindow);
++
++  xev->type   = shapeEvent + ShapeNotify;
++  xsev.window = mShapeWindow;
++
++  if (!mRemoved)
++  {
++    /* FIXME: these roundtrips suck */
++    XGetGeometry (mDpy, mShapeWindow, &rootReturn, &x, &y, &width, &height, &depth, &border);
++    XQueryTree (mDpy, mShapeWindow, &rootReturn, &parentReturn, &children, &nchildren);
++
++    /* We need to translate the co-ordinates of the origin to the
++     * client window to its parent to find out the offset of its
++     * position so that we can subtract that from the final bounding
++     * rect of the window shape according to the Shape extension
++     * specification */
++
++    XTranslateCoordinates (mDpy, mShapeWindow, parentReturn, 0, 0, &xOffset, &yOffset, &childReturn);
++
++    xev->type = ShapeBounding;
++
++    /* Calculate extents of the bounding shape */
++    if (!mNBoundingRects)
++    {
++      /* No set input shape, we must use the client geometry */
++      xsev.x = x - xOffset;
++      xsev.y = y - yOffset;
++      xsev.width = width; 
++      xsev.height = height;
++      xsev.shaped = false;
++    }
++    else
++    {
++      Region      boundingRegion = XCreateRegion ();
++
++      for (int i = 0; i < mNBoundingRects; i++)
++	XUnionRectWithRegion (&(mBoundingRects[i]), boundingRegion, boundingRegion);
++
++      xsev.x = boundingRegion->extents.x1 - xOffset;
++      xsev.y = boundingRegion->extents.y1 - yOffset;
++      xsev.width = boundingRegion->extents.x2 - boundingRegion->extents.x1;
++      xsev.height = boundingRegion->extents.y2 - boundingRegion->extents.y1;
++      xsev.shaped = true;
++
++      XDestroyRegion (boundingRegion);
++    }
++
++    xsev.time = CurrentTime;
++    XSendEvent (mDpy, DefaultRootWindow (mDpy), false, shapeMask, xev);
++
++    xev->type = ShapeInput;
++
++    /* Calculate extents of the bounding shape */
++    if (!mNInputRects)
++    {
++      /* No set input shape, we must use the client geometry */
++      xsev.x = x - xOffset;
++      xsev.y = y - yOffset;
++      xsev.width = width; 
++      xsev.height = height;
++      xsev.shaped = false;
++    }
++    else
++    {
++      Region      inputRegion = XCreateRegion ();
++
++      for (int i = 0; i < mNInputRects; i++)
++	XUnionRectWithRegion (&(mInputRects[i]), inputRegion, inputRegion);
++
++      xsev.x = inputRegion->extents.x1 - xOffset;
++      xsev.y = inputRegion->extents.y1 - yOffset;
++      xsev.width = inputRegion->extents.x2 - inputRegion->extents.x1;
++      xsev.height = inputRegion->extents.y2 - inputRegion->extents.y1;
++      xsev.shaped = true;
++
++      XDestroyRegion (inputRegion);
++    }
++
++    xsev.time = CurrentTime;
++    XSendEvent (mDpy, DefaultRootWindow (mDpy), false, shapeMask, xev);
++
++    if (children)
++      XFree (children);
++  }
++  else
++  {
++    xev->type = ShapeBounding;
++
++    xsev.x = 0;
++    xsev.y = 0;
++    xsev.width = 0;
++    xsev.height = 0;
++    xsev.shaped = true;
++
++    xsev.time = CurrentTime;
++    XSendEvent (mDpy, DefaultRootWindow (mDpy), false, shapeMask, xev);
++
++    xev->type = ShapeInput;
++
++    /* Both ShapeBounding and ShapeInput are null */
++
++    xsev.time = CurrentTime;
++    XSendEvent (mDpy, DefaultRootWindow (mDpy), false, shapeMask, xev);
++  }
++}
++
+ bool
+ compiz::WindowInputRemover::save ()
+ {
+@@ -111,6 +238,8 @@ compiz::WindowInputRemover::remove ()
+ 
+   XShapeSelectInput (mDpy, mShapeWindow, ShapeNotify);
+ 
++  sendShapeNotify ();
++
+   mRemoved = true;
+   return true;
+ }
+@@ -125,6 +254,7 @@ compiz::WindowInputRemover::restore ()
+       XShapeCombineRectangles (mDpy, mShapeWindow, ShapeInput, 0, 0,
+ 	                       mInputRects, mNInputRects,
+ 	                       ShapeSet, mInputRectOrdering);
++
+     }
+     else
+     {
+@@ -153,6 +283,8 @@ compiz::WindowInputRemover::restore ()
+ 
+   XShapeSelectInput (mDpy, mShapeWindow, mShapeMask);
+ 
++  sendShapeNotify ();
++
+   mRemoved = false;
+   mNInputRects  = 0;
+   mInputRects = NULL;
+--- unity-4.14.2.orig/plugins/unityshell/src/minimizedwindowhandler.cpp
++++ unity-4.14.2/plugins/unityshell/src/minimizedwindowhandler.cpp
+@@ -58,10 +58,10 @@ compiz::MinimizedWindowHandler::setVisib
+   {
+     priv->mRemover = new compiz::WindowInputRemover (priv->mDpy, shapeWin);
+     if (!priv->mRemover)
+-	    return;
++      return;
+ 
+     if (priv->mRemover->save ())
+-	    priv->mRemover->remove ();
++      priv->mRemover->remove ();
+   }
+   else if (visible && priv->mRemover)
+   {
