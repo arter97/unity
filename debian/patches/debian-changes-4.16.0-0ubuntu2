@@ -1,0 +1,49 @@
+Description: Upstream changes introduced in version 4.16.0-0ubuntu2
+ This patch has been created by dpkg-source during the package build.
+ Here's the last changelog entry, hopefully it gives details on why
+ those changes were made:
+ .
+ unity (4.16.0-0ubuntu2) oneiric; urgency=low
+ .
+   * com.canonical.Unity.gschema.xml:
+     - add Update-notifier to the whitelist (LP: #779382)
+ .
+ The person named in the Author field signed this changelog entry.
+Author: Didier Roche <didrocks@ubuntu.com>
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/779382
+
+---
+The information above should follow the Patch Tagging Guidelines, please
+checkout http://dep.debian.net/deps/dep3/ to learn about the format. Here
+are templates for supplementary fields that you might want to add:
+
+Origin: <vendor|upstream|other>, <url of original patch>
+Bug: <url in upstream bugtracker>
+Bug-Debian: http://bugs.debian.org/<bugnumber>
+Bug-Ubuntu: https://launchpad.net/bugs/<bugnumber>
+Forwarded: <no|not-needed|url proving that it has been forwarded>
+Reviewed-By: <name and email of someone who approved the patch>
+Last-Update: <YYYY-MM-DD>
+
+--- unity-4.16.0.orig/com.canonical.Unity.gschema.xml
++++ unity-4.16.0/com.canonical.Unity.gschema.xml
+@@ -40,7 +40,7 @@
+   </schema>
+ 	<schema path="/desktop/unity/panel/" id="com.canonical.Unity.Panel" gettext-domain="unity">
+     <key type="as" name="systray-whitelist">
+-      <default>[ 'JavaEmbeddedFrame', 'Wine', 'scp-dbus-service' ]</default>
++      <default>[ 'JavaEmbeddedFrame', 'Wine', 'scp-dbus-service', 'Update-notifier' ]</default>
+       <summary>List of client names, resource classes or wm classes to allow in the Panel's systray implementation.</summary>
+       <description>"" (empty) will not allow any tray icons, "all" will allow all tray icons, otherwise there will be an attempt to match each icon to a value here.</description>
+     </key>
+--- unity-4.16.0.orig/services/CMakeLists.txt
++++ unity-4.16.0/services/CMakeLists.txt
+@@ -39,7 +39,7 @@ set(CFLAGS
+     "-DGETTEXT_PACKAGE=\"unity\""
+     "-DINDICATORDIR=\"${_indicatordir}\""
+     "-DINDICATORICONDIR=\"${_iconsdir}\""
+-    "-Werror -Wall"
++    "-Wall"
+     )
+ add_definitions(${CFLAGS})
+ 
