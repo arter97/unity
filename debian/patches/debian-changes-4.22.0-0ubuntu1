@@ -1,0 +1,76 @@
+Description: Upstream changes introduced in version 4.22.0-0ubuntu1
+ This patch has been created by dpkg-source during the package build.
+ Here's the last changelog entry, hopefully it gives details on why
+ those changes were made:
+ .
+ unity (4.22.0-0ubuntu1) oneiric; urgency=low
+ .
+   * New upstream release.
+     - unity 3d firefox window borders disappear (LP: #861143)
+     - Desktop drawn with offset (LP: #862743)
+     - Crash when selecting Evolution in alt-tab (LP: #859431)
+     - unity-panel-service crashed with SIGSEGV in g_type_check_instance_cast()
+       - with a11y enabled (LP: #829367)
+     - compiz crashed with SIGSEGV in
+       unity::switcher::SwitcherController::~SwitcherController() (LP: #863302)
+     - compiz assert failure: *** glibc detected *** compiz: double free or
+       corruption (!prev): 0x00007fa248593900 *** (LP: #862938)
+     - Onboard can cause unity to crash (LP: #863693)
+     - compiz crashed with SIGSEGV in LauncherIcon::SetHasWindowOnViewport()
+       (LP: #863652)
+     - Dash opens the wrong application after scrolling in the application list
+       (LP: #863555)
+     - Categories "Applications" and "Files and folders" are untranslated
+       (LP: #865430)
+     - focus nautilus desktop to get focus at startup (LP: #863037)
+     - The 'Desktop' label isn't shown if you use "Show desktop" in alt + tab
+       (LP: #863129)
+     - UIFe: Remove Ubuntu logo again from desktop title (LP: #865150)
+     - compiz assert failure: *** glibc detected *** compiz: free(): corrupted
+       unsorted chunks: 0x0000000004a1d390 *** (LP: #863303)
+     - Fix a mem leak
+     - compiz crashed with SIGSEGV in unity::dash::LensView::~LensView()
+       (LP: #863191)
+ .
+ The person named in the Author field signed this changelog entry.
+Author: Didier Roche <didrocks@ubuntu.com>
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/829367
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/859431
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/861143
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/862743
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/862938
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/863037
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/863129
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/863191
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/863302
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/863303
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/863555
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/863652
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/863693
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/865150
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/865430
+
+---
+The information above should follow the Patch Tagging Guidelines, please
+checkout http://dep.debian.net/deps/dep3/ to learn about the format. Here
+are templates for supplementary fields that you might want to add:
+
+Origin: <vendor|upstream|other>, <url of original patch>
+Bug: <url in upstream bugtracker>
+Bug-Debian: http://bugs.debian.org/<bugnumber>
+Bug-Ubuntu: https://launchpad.net/bugs/<bugnumber>
+Forwarded: <no|not-needed|url proving that it has been forwarded>
+Reviewed-By: <name and email of someone who approved the patch>
+Last-Update: <YYYY-MM-DD>
+
+--- unity-4.22.0.orig/services/CMakeLists.txt
++++ unity-4.22.0/services/CMakeLists.txt
+@@ -39,7 +39,7 @@ set(CFLAGS
+     "-DGETTEXT_PACKAGE=\"unity\""
+     "-DINDICATORDIR=\"${_indicatordir}\""
+     "-DINDICATORICONDIR=\"${_iconsdir}\""
+-    "-Werror -Wall"
++    "-Wall"
+     )
+ add_definitions(${CFLAGS})
+ 
