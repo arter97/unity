@@ -1,0 +1,50 @@
+Description: Upstream changes introduced in version 4.22.0-0ubuntu2
+ This patch has been created by dpkg-source during the package build.
+ Here's the last changelog entry, hopefully it gives details on why
+ those changes were made:
+ .
+ unity (4.22.0-0ubuntu2) oneiric; urgency=low
+ .
+   * Cherry-pick upstream:
+     - fix minimize windows not showing when clicking on a launcher icon
+       (LP: #868185)
+ .
+ The person named in the Author field signed this changelog entry.
+Author: Didier Roche <didrocks@ubuntu.com>
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/868185
+
+---
+The information above should follow the Patch Tagging Guidelines, please
+checkout http://dep.debian.net/deps/dep3/ to learn about the format. Here
+are templates for supplementary fields that you might want to add:
+
+Origin: <vendor|upstream|other>, <url of original patch>
+Bug: <url in upstream bugtracker>
+Bug-Debian: http://bugs.debian.org/<bugnumber>
+Bug-Ubuntu: https://launchpad.net/bugs/<bugnumber>
+Forwarded: <no|not-needed|url proving that it has been forwarded>
+Reviewed-By: <name and email of someone who approved the patch>
+Last-Update: <YYYY-MM-DD>
+
+--- unity-4.22.0.orig/services/CMakeLists.txt
++++ unity-4.22.0/services/CMakeLists.txt
+@@ -39,7 +39,7 @@ set(CFLAGS
+     "-DGETTEXT_PACKAGE=\"unity\""
+     "-DINDICATORDIR=\"${_indicatordir}\""
+     "-DINDICATORICONDIR=\"${_iconsdir}\""
+-    "-Werror -Wall"
++    "-Wall"
+     )
+ add_definitions(${CFLAGS})
+ 
+--- unity-4.22.0.orig/plugins/unityshell/src/unityshell.cpp
++++ unity-4.22.0/plugins/unityshell/src/unityshell.cpp
+@@ -1703,7 +1703,7 @@ void UnityWindow::windowNotify(CompWindo
+         if (!focusdesktop_handle_)
+            focusdesktop_handle_ = g_timeout_add (1000, &UnityWindow::FocusDesktopTimeout, this);
+       }
+-      break;
++    /* Fall through an re-evaluate wraps on map and unmap too */
+     case CompWindowNotifyUnmap:
+       if (UnityScreen::get (screen)->optionGetShowMinimizedWindows () &&
+           window->mapNum ())
