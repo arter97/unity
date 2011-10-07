@@ -1,17 +1,19 @@
-Description: Upstream changes introduced in version 4.22.0-0ubuntu2
+Description: Upstream changes introduced in version 4.22.0-0ubuntu3
  This patch has been created by dpkg-source during the package build.
  Here's the last changelog entry, hopefully it gives details on why
  those changes were made:
  .
- unity (4.22.0-0ubuntu2) oneiric; urgency=low
+ unity (4.22.0-0ubuntu3) oneiric; urgency=low
  .
    * Cherry-pick upstream:
-     - fix minimize windows not showing when clicking on a launcher icon
-       (LP: #868185)
+     - Resize the _gradient_texture (in PanelMenuView::Draw) if needed
+       (LP: #863068, #868293, #869028)
  .
  The person named in the Author field signed this changelog entry.
 Author: Didier Roche <didrocks@ubuntu.com>
-Bug-Ubuntu: https://bugs.launchpad.net/bugs/868185
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/863068
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/868293
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/869028
 
 ---
 The information above should follow the Patch Tagging Guidelines, please
@@ -37,6 +39,17 @@ Last-Update: <YYYY-MM-DD>
      )
  add_definitions(${CFLAGS})
  
+--- unity-4.22.0.orig/plugins/unityshell/src/PanelMenuView.cpp
++++ unity-4.22.0/plugins/unityshell/src/PanelMenuView.cpp
+@@ -447,7 +447,7 @@ PanelMenuView::Draw(nux::GraphicsEngine&
+       lockrect.pBits = 0;
+       bool locked = false;
+ 
+-      if (_gradient_texture.IsNull())
++      if (_gradient_texture.IsNull() || (_gradient_texture->GetWidth() != geo.width))
+       {
+         build_gradient = true;
+       }
 --- unity-4.22.0.orig/plugins/unityshell/src/unityshell.cpp
 +++ unity-4.22.0/plugins/unityshell/src/unityshell.cpp
 @@ -1703,7 +1703,7 @@ void UnityWindow::windowNotify(CompWindo
