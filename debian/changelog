@@ -1,3 +1,16 @@
+unity (5.2.0-0ubuntu2) precise; urgency=low
+
+  * Cherry-pick upstream:
+    - a fix for a 5.0 crasher (LP: #916228)
+    - default configuration now to "always lock"
+  * debian/profile_upgrade/com.canonical.unity.unity.03.upgrade,
+    debian/unity-common.install:
+    - enabling user profile upgrade installation
+    - switcher per workspace is now the default on upgrade
+    - launcher is always locked by default, even on upgrade (LP: #928153)
+
+ -- Didier Roche <didrocks@ubuntu.com>  Tue, 07 Feb 2012 17:53:27 +0100
+
 unity (5.2.0-0ubuntu1) precise; urgency=low
 
   * New upstream release.
