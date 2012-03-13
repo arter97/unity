@@ -1,3 +1,16 @@
+unity (5.6.0-0ubuntu2) precise; urgency=low
+
+  * debian/patches/01_remove_ungrab_workaround.patch:
+    - remove a workaround which makes alt + keys not passing events to other
+      apps (LP: #953783)
+  * debian/control:
+    - add libxfixes build-dep (versionned as there is an ABI break). No cmake
+      file was listing it, will fix that upstream as well. ubuntu4 of libxfixes
+      need an unity rebuild to avoid not being able to trigger launcher reveal
+      (LP: #953778)
+
+ -- Didier Roche <didrocks@ubuntu.com>  Tue, 13 Mar 2012 12:35:47 +0100
+
 unity (5.6.0-0ubuntu1) precise; urgency=low
 
   * New upstream release.
