@@ -25,7 +25,7 @@ Build-Depends: cmake,
                libunity-misc-dev (>= 4.0.4),
                libutouch-grail-dev (>= 1.0.20),
                libxcb-icccm4-dev,
-               libnux-2.0-dev (>= 2.8.0),
+               libnux-2.0-dev (>= 2.10.0),
                compiz-dev (>= 1:0.9.7.2),
                libcompizconfig0-dev (>= 0.9.7.0~bzr428-0ubuntu6~),
                xsltproc,
@@ -40,7 +40,7 @@ Build-Depends: cmake,
                libgdu-dev,
                libunity-dev (>= 5.2.0),
                libxfixes-dev (>= 1:5.0-4ubuntu4),
-Standards-Version: 3.9.2
+Standards-Version: 3.9.3
 Homepage: https://launchpad.net/unity
 Vcs-Bzr: https://code.launchpad.net/~ubuntu-desktop/unity/ubuntu
 
