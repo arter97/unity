@@ -1,3 +1,16 @@
+unity (5.10.0-0ubuntu3) precise-proposed; urgency=low
+
+  [ Oliver Grawert ]
+  * Enable subarch specific quilt support
+  * add linaros disable_standalone-clients.patch to make unity build with GLES
+
+  [ Didier Roche ]
+  * remove a symlink and replace with a real file for
+    debian/patches/series.<arch> as not supported  in non v3 (and we don't
+    want v3 format with full source upstream derived branch)
+
+ -- Didier Roche <didrocks@ubuntu.com>  Fri, 13 Apr 2012 14:34:15 +0200
+
 unity (5.10.0-0ubuntu2) precise-proposed; urgency=low
 
   [ Ricardo Salveti de Araujo ]
