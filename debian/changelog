@@ -1,3 +1,21 @@
+unity (5.12-0ubuntu4) quantal-proposed; urgency=low
+
+  * debian/control:
+    - build on unversionned version of boost (to transition to 1.49 in quantal)
+      (LP: #1008219)
+    - build-dep on latest compiz-dev version for ABI break
+    - Vcs-Bzr: move to canonical branch
+    - remove netbook-launcher transitional package and other unsupported
+      transition cruft
+  * debian/rules:
+    - build in parallel
+  * Cherry-pick some upstream fixes for the newer g-c-c making previous upload
+    FTBFS in quantal
+  * as armel/armhf is temporary build with opengl now, build-dep on nux
+    2.12.0-0ubuntu2
+
+ -- Didier Roche <didrocks@ubuntu.com>  Thu, 31 May 2012 10:21:46 +0200
+
 unity (5.12-0ubuntu3) quantal; urgency=low
 
   * Build with gcc-4.6 temporarily while upstream works
