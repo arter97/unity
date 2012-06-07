@@ -1,3 +1,11 @@
+unity (5.12-0ubuntu3) quantal; urgency=low
+
+  * Build with gcc-4.6 temporarily while upstream works
+    on fixing the build with gcc-4.7 and boost1.49.
+  * Rebuild for the libgnome-desktop SOVER bump.
+
+ -- Adam Conrad <adconrad@ubuntu.com>  Thu, 07 Jun 2012 16:16:44 -0600
+
 unity (5.12-0ubuntu2) quantal; urgency=low
 
   * Cherry pick upstream fixes.
