@@ -6,6 +6,8 @@ Build-Depends: cmake,
                debhelper (>= 7.0.50~),
                dh-translations (>= 94),
                pkg-config,
+               python (>= 2.7),
+               python-setuptools,
                quilt,
                intltool (>= 0.35.0),
                libsigc++-2.0-dev,
@@ -25,7 +27,7 @@ Build-Depends: cmake,
                libunity-misc-dev (>= 4.0.4),
                libutouch-grail-dev (>= 1.0.20),
                libxcb-icccm4-dev,
-               libnux-2.0-dev (>= 2.12.0-0ubuntu2),
+               libnux-3.0-dev (>= 3.0.0),
                compiz-dev (>= 1:0.9.8),
                libcompizconfig0-dev (>= 0.9.8),
                xsltproc,
@@ -36,8 +38,6 @@ Build-Depends: cmake,
                libatk1.0-dev,
                libjson-glib-dev,
                libutouch-geis-dev (>= 2.0.10),
-               libgnome-desktop-3-dev,
-               libgdu-dev,
                libunity-dev (>= 5.2.0),
                libxfixes-dev (>= 1:5.0-4ubuntu4),
                gcc-4.6,
@@ -50,14 +50,14 @@ Package: unity
 Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends},
-         libunity-core-5.0-5 (= ${binary:Version}),
+         ${python:Depends},
+         libunity-core-6.0-5 (= ${binary:Version}),
          unity-common (= ${source:Version}),
          compiz,
          compiz-core, compiz-core-abiversion-${coreabiversion},
          libnux-abiversion-${nuxabiversion},
          compiz-plugins-main-default,
          libglib2.0-bin,
-         python,
          python-gconf,
          nux-tools,
          unity-asset-pool (>= 0.8.18)
@@ -74,6 +74,10 @@ Recommends: unity-lens-applications,
             indicator-printers,
             indicator-power,
             indicator-session,
+Breaks: unity-lens-applications (<< 5.12.0-0ubuntu2),
+        unity-lens-files (<< 5.10.0-0ubuntu2),
+        unity-lens-music (<< 6.0.0),
+        unity-lens-video (<< 0.3.6-0ubuntu2),
 Description: Interface designed for efficiency of space and interaction.
  Unity is a desktop experience that sings. Designed by Canonical and the Ayatana
  community, Unity is all about the combination of familiarity and the future. We
@@ -99,7 +103,7 @@ Description: Services for the Unity interface
 Package: unity-common
 Architecture: all
 Depends: ${misc:Depends},
-         python,
+         ${python:Depends},
 Description: Common files for the Unity interface.
  Unity is a desktop experience that sings. Designed by Canonical and the Ayatana
  community, Unity is all about the combination of familiarity and the future. We
@@ -110,7 +114,7 @@ Description: Common files for the Unity interface.
  .
  This package contains commons file that are architecture independent.
 
-Package: libunity-core-5.0-5
+Package: libunity-core-6.0-5
 Section: libs
 Architecture: any
 Depends: ${shlibs:Depends},
@@ -126,14 +130,14 @@ Description: Core library for the Unity interface.
  .
  This package contains shared libraries to be used by unity-3d and unity-2d.
 
-Package: libunity-core-5.0-dev
+Package: libunity-core-6.0-dev
 Section: libdevel
 Architecture: any
 Depends: ${misc:Depends},
-         libunity-core-5.0-5 (= ${binary:Version}),
+         libunity-core-6.0-5 (= ${binary:Version}),
          libglib2.0-dev,
          libsigc++-2.0-dev,
-         libnux-2.0-dev (>= 1.0.2),
+         libnux-3.0-dev (>= 3.0.0),
          libunity-dev (>= 4.0.0~),
          libdee-dev,
 Description: Core library for the Unity interface - development files
@@ -146,4 +150,15 @@ Description: Core library for the Unity interface - development files
  .
  This package contains development files for libraries to be used by unity-3d
  and unity-2d.
+
+Package: unity-autopilot
+Section: python
+Architecture: all
+Depends: ${misc:Depends},
+         ${python:Depends},
+Description: Autopiloted tests for Unity
+ We test Unity automatically through autopilot, a framework which enables us
+ to trigger keyboard and mouse events on the fly as well as introspecting
+ objects. This package contains the specific unity introspection bindings
+ to be able to write tests in python as well as the full test suite for Unity.
 
