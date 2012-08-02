@@ -1,3 +1,12 @@
+unity (6.0.0-0ubuntu6) quantal; urgency=low
+
+  * Don't specify a specific destination for the dbus signals, that
+    creates issues with the new dbus eavedropping behaviour,
+    thanks Neil J. Patel for the fix! Required for the new dbus version.
+    (lp: #1014850)
+
+ -- Sebastien Bacher <seb128@ubuntu.com>  Thu, 02 Aug 2012 16:35:04 +0200
+
 unity (6.0.0-0ubuntu5) quantal; urgency=low
 
   * Update build-deps to lib{geis,grail}-dev for the great library renaming.
