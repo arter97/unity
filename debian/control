@@ -100,7 +100,7 @@ Description: Services for the Unity interface
  to produce what we hope will be the lightest, most elegant and most delightful
  way to use your PC.
  .
- This package contains the dbus service used for unity and unity-2d.
+ This package contains the dbus service used for unity.
 
 Package: unity-common
 Architecture: all
@@ -130,7 +130,7 @@ Description: Core library for the Unity interface.
  to produce what we hope will be the lightest, most elegant and most delightful
  way to use your PC.
  .
- This package contains shared libraries to be used by unity-3d and unity-2d.
+ This package contains shared libraries to be used by unity-3d.
 
 Package: libunity-core-6.0-dev
 Section: libdevel
@@ -150,8 +150,7 @@ Description: Core library for the Unity interface - development files
  to produce what we hope will be the lightest, most elegant and most delightful
  way to use your PC.
  .
- This package contains development files for libraries to be used by unity-3d
- and unity-2d.
+ This package contains development files for libraries to be used by unity.
 
 Package: unity-autopilot
 Section: python
@@ -163,4 +162,69 @@ Description: Autopiloted tests for Unity
  to trigger keyboard and mouse events on the fly as well as introspecting
  objects. This package contains the specific unity introspection bindings
  to be able to write tests in python as well as the full test suite for Unity.
+
+Package: unity-2d
+Depends: unity, ${misc:Depends}
+Architecture: all
+Section: oldlibs
+Description: transitional dummy package
+ This is a transitional dummy package for unity-2d -> unity migration.
+ It can safely be removed.
+
+Package: libunity-2d-private0
+Depends: unity, ${misc:Depends}
+Architecture: all
+Section: oldlibs
+Description: transitional dummy package 
+ This is a transitional dummy package for unity-2d -> unity migration.
+ It can safely be removed.
+
+Package: libunity-2d-private-dev
+Depends: unity, ${misc:Depends}
+Architecture: all
+Section: oldlibs
+Description: transitional dummy package 
+ This is a transitional dummy package for unity-2d -> unity migration.
+ It can safely be removed.
+
+Package: unity-2d-panel
+Depends: unity, ${misc:Depends}
+Architecture: all
+Section: oldlibs
+Description: transitional dummy package 
+ This is a transitional dummy package for unity-2d -> unity migration.
+ It can safely be removed.
+
+Package: unity-2d-spread
+Depends: unity, ${misc:Depends}
+Architecture: all
+Section: oldlibs
+Description: transitional dummy package 
+ This is a transitional dummy package for unity-2d -> unity migration.
+ It can safely be removed.
+
+Package: unity-2d-common
+Depends: unity, ${misc:Depends}
+Architecture: all
+Section: oldlibs
+Description: transitional dummy package 
+ This is a transitional dummy package for unity-2d -> unity migration.
+ It can safely be removed.
+
+Package: unity-2d-shell
+Depends: unity, ${misc:Depends}
+Architecture: all
+Section: oldlibs
+Description: transitional dummy package
+ This is a transitional dummy package for unity-2d -> unity migration.
+ It can safely be removed.
+
+Package: unity-2d-dbg
+Priority: extra
+Depends: unity, ${misc:Depends}
+Architecture: all
+Section: oldlibs
+Description: transitional dummy package
+ This is a transitional dummy package for unity-2d -> unity migration.
+ It can safely be removed.
 
