@@ -1,5 +1,5 @@
 # SOME DESCRIPTIVE TITLE.
-# Copyright (C) YEAR Canonical\ Ltd
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
 # This file is distributed under the same license as the PACKAGE package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 #
@@ -7,8 +7,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: ayatana-dev@lists.launchpad.net\n"
-"POT-Creation-Date: 2011-08-23 20:58-0400\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2012-09-01 20:44+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -16,105 +16,1002 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=CHARSET\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
-msgid "Keep in launcher"
+#: ../dash/DashView.cpp:83
+msgid "Home"
 msgstr ""
 
-msgid "Quit"
+#: ../dash/DashView.cpp:83
+msgid "Home screen"
 msgstr ""
 
-msgid "Open"
-msgstr ""
-
-msgid "Eject"
-msgstr ""
-
-msgid "Eject parent drive"
-msgstr ""
-
-msgid "Safely remove"
-msgstr ""
-
-msgid "Safely remove parent drive"
-msgstr ""
-
-msgid "Unmount"
-msgstr ""
-
-msgid "The drive has been successfully ejected"
-msgstr ""
-
-msgid "Workspace Switcher"
-msgstr ""
-
+#: ../dash/DashView.cpp:83
 msgid "Search"
 msgstr ""
 
-msgid "Search across all places"
+#: ../dash/FilterAllButton.cpp:35
+msgid "All"
 msgstr ""
 
+#: ../dash/FilterGenreWidget.cpp:40
+msgid "Categories"
+msgstr ""
+
+#: ../dash/FilterMultiRangeWidget.cpp:41
+msgid "Multi-range"
+msgstr ""
+
+#: ../dash/FilterRatingsWidget.cpp:47
+msgid "Rating"
+msgstr ""
+
+#: ../dash/LensView.cpp:583
+msgid "Sorry, there is nothing that matches your search."
+msgstr ""
+
+#: ../dash/PlacesGroup.cpp:341
 msgid "See fewer results"
 msgstr ""
 
-msgid "Shortcuts"
+#: ../dash/PlacesGroup.cpp:347
+#, c-format
+msgid "See one more result"
+msgid_plural "See %d more results"
+msgstr[0] ""
+msgstr[1] ""
+
+#: ../hud/HudView.cpp:173 ../hud/HudView.cpp:377
+msgid "Type your command"
 msgstr ""
 
-#. Media Apps
-msgid "Media Apps"
+#: ../launcher/BFBLauncherIcon.cpp:37 ../launcher/BFBLauncherIcon.cpp:114
+msgid "Dash Home"
 msgstr ""
 
-#. Internet Apps
-msgid "Internet Apps"
+#: ../launcher/BamfLauncherIcon.cpp:999 ../launcher/DeviceLauncherIcon.cpp:139
+msgid "Lock to Launcher"
 msgstr ""
 
-#. More Apps
-msgid "More Apps"
+#: ../launcher/BamfLauncherIcon.cpp:999 ../launcher/DeviceLauncherIcon.cpp:139
+msgid "Unlock from Launcher"
 msgstr ""
 
-#. Find Files
-msgid "Find Files"
+#: ../launcher/BamfLauncherIcon.cpp:1008
+msgid "Quit"
 msgstr ""
 
-msgid "Browse the Web"
+#: ../launcher/DesktopLauncherIcon.cpp:34
+msgid "Show Desktop"
 msgstr ""
 
-#. Photos
-#. FIXME: Need to figure out the default
-msgid "View Photos"
+#: ../launcher/DeviceLauncherIcon.cpp:151
+msgid "Open"
 msgstr ""
 
-msgid "Check Email"
+#. If the list has only one item
+#: ../launcher/DeviceLauncherIcon.cpp:170
+msgid "Eject"
 msgstr ""
 
-msgid "Listen to Music"
+#: ../launcher/DeviceLauncherIcon.cpp:172
+msgid "Eject parent drive"
 msgstr ""
 
+#. If the list has only one item
+#: ../launcher/DeviceLauncherIcon.cpp:196
+msgid "Safely remove"
+msgstr ""
+
+#: ../launcher/DeviceLauncherIcon.cpp:198
+msgid "Safely remove parent drive"
+msgstr ""
+
+#: ../launcher/DeviceLauncherIcon.cpp:222
+msgid "Unmount"
+msgstr ""
+
+#: ../launcher/DeviceLauncherIcon.cpp:323
+msgid "The drive has been successfully ejected"
+msgstr ""
+
+#: ../launcher/LauncherController.cpp:573
+msgid "Workspace Switcher"
+msgstr ""
+
+#. Application is being installed, or hasn't been installed yet
+#: ../launcher/SoftwareCenterLauncherIcon.cpp:54
+msgid "Waiting to install"
+msgstr ""
+
+#: ../launcher/SpacerLauncherIcon.cpp:36
 msgid "Drop To Add Application"
 msgstr ""
 
+#: ../launcher/TrashLauncherIcon.cpp:45
 msgid "Trash"
 msgstr ""
 
+#: ../launcher/TrashLauncherIcon.cpp:82
 msgid "Empty Trash..."
 msgstr ""
 
-msgid "Empty all items from Trash?"
+#: ../panel/PanelMenuView.cpp:72
+msgid "Ubuntu Desktop"
 msgstr ""
 
-msgid "All items in the Trash will be permanently deleted."
+#. namespace unity
+#: ../plugins/networkarearegion/networkarearegion.xml.in.h:1
+msgid "Unity Scrollbars Support"
 msgstr ""
 
-msgid "Empty Trash"
+#: ../plugins/networkarearegion/networkarearegion.xml.in.h:2
+msgid "Support _UNITY_NET_WORKAREA_REGION"
 msgstr ""
 
-msgid "Launcher & Menus"
+#: ../plugins/unity-mt-grab-handles/unitymtgrabhandles.xml.in.h:1
+msgid "Unity MT Grab Handles"
 msgstr ""
 
-msgid "<b>Show the launcher when the pointer:</b>"
+#: ../plugins/unity-mt-grab-handles/unitymtgrabhandles.xml.in.h:2
+msgid "Small touch-based grab handles to move and resize a window"
 msgstr ""
 
-msgid "Pushes the left edge of the screen"
+#: ../plugins/unity-mt-grab-handles/unitymtgrabhandles.xml.in.h:3
+msgid "Toggle Handles"
 msgstr ""
 
-msgid "Touches the top left corner of the screen"
+#: ../plugins/unity-mt-grab-handles/unitymtgrabhandles.xml.in.h:4
+msgid "Key to toggle the handles"
+msgstr ""
+
+#: ../plugins/unity-mt-grab-handles/unitymtgrabhandles.xml.in.h:5
+msgid "Show Handles"
+msgstr ""
+
+#: ../plugins/unity-mt-grab-handles/unitymtgrabhandles.xml.in.h:6
+msgid "Key to show the handles"
+msgstr ""
+
+#: ../plugins/unity-mt-grab-handles/unitymtgrabhandles.xml.in.h:7
+msgid "Hide Handles"
+msgstr ""
+
+#: ../plugins/unity-mt-grab-handles/unitymtgrabhandles.xml.in.h:8
+msgid "Key to hide the handles"
+msgstr ""
+
+#: ../plugins/unity-mt-grab-handles/unitymtgrabhandles.xml.in.h:9
+msgid "Fade Duration"
+msgstr ""
+
+#: ../plugins/unity-mt-grab-handles/unitymtgrabhandles.xml.in.h:10
+msgid "How long the fade should last"
+msgstr ""
+
+#: ../plugins/unitydialog/unitydialog.xml.in.h:1
+msgid "Dialog Handler"
+msgstr ""
+
+#: ../plugins/unitydialog/unitydialog.xml.in.h:2
+msgid "Handles the modal dialog experience in unity"
+msgstr ""
+
+#: ../plugins/unitydialog/unitydialog.xml.in.h:3
+msgid "Alpha"
+msgstr ""
+
+#: ../plugins/unitydialog/unitydialog.xml.in.h:4
+msgid "What dimming alpha to use"
+msgstr ""
+
+#: ../plugins/unitydialog/unitydialog.xml.in.h:5
+msgid "Fade Time"
+msgstr ""
+
+#: ../plugins/unitydialog/unitydialog.xml.in.h:6
+msgid "How long the fade should take (ms)"
+msgstr ""
+
+#: ../plugins/unitydialog/unitydialog.xml.in.h:7
+msgid "Blacklist"
+msgstr ""
+
+#: ../plugins/unitydialog/unitydialog.xml.in.h:8
+msgid "Match for dialogs that shouldn't be accepted as transient modal dialogs"
+msgstr ""
+
+#. Dash...
+#: ../plugins/unityshell/src/unity-dash-view-accessible.cpp:100
+#: ../plugins/unityshell/src/unityshell.cpp:3164
+msgid "Dash"
+msgstr ""
+
+#. TODO move category text into a vector...
+#. Launcher...
+#: ../plugins/unityshell/src/unity-launcher-accessible.cpp:137
+#: ../plugins/unityshell/src/unityshell.cpp:3124
+msgid "Launcher"
+msgstr ""
+
+#: ../plugins/unityshell/src/unity-quicklist-menu-accessible.cpp:179
+msgid "Quicklist"
+msgstr ""
+
+#: ../plugins/unityshell/src/unity-switcher-accessible.cpp:147
+#: ../plugins/unityshell/unityshell.xml.in.h:25
+msgid "Switcher"
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3126
+msgid " (Hold)"
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3127
+msgid "Opens the Launcher, displays shortcuts."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3133
+msgid "Opens Launcher keyboard navigation mode."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3139
+msgid "Switches applications via the Launcher."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3144
+msgid " + 1 to 9"
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3145
+msgid "Same as clicking on a Launcher icon."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3150
+msgid " + Shift + 1 to 9"
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3151
+msgid "Opens a new window in the app."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3157
+msgid "Opens the Trash."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3166
+#: ../plugins/unityshell/src/unityshell.cpp:3214
+msgid " (Tap)"
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3167
+msgid "Opens the Dash Home."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3173
+msgid "Opens the Dash App Lens."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3179
+msgid "Opens the Dash Files Lens."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3185
+msgid "Opens the Dash Music Lens."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3191
+msgid "Opens the Dash Video Lens."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3197
+msgid "Switches between Lenses."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3199
+msgid "Ctrl + Tab"
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3202
+#: ../plugins/unityshell/src/unityshell.cpp:3252
+msgid "Moves the focus."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3204
+msgid "Arrow Keys"
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3207
+msgid "Opens the currently focused item."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3209
+msgid "Enter"
+msgstr ""
+
+#. Menu Bar
+#: ../plugins/unityshell/src/unityshell.cpp:3212
+msgid "HUD & Menu Bar"
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3215
+msgid "Opens the HUD."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3221
+msgid "Reveals the application menu."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3226
+msgid "Opens the indicator menu."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3232
+msgid "Moves focus between indicators."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3234
+#: ../plugins/unityshell/src/unityshell.cpp:3254
+msgid "Cursor Left or Right"
+msgstr ""
+
+#. Switching
+#: ../plugins/unityshell/src/unityshell.cpp:3237
+msgid "Switching"
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3240
+msgid "Switches between applications."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3246
+msgid "Switches windows of current applications."
+msgstr ""
+
+#. Workspaces
+#: ../plugins/unityshell/src/unityshell.cpp:3257
+msgid "Workspaces"
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3260
+msgid "Switches between workspaces."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3265
+#: ../plugins/unityshell/src/unityshell.cpp:3271
+msgid " + Arrow Keys"
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3266
+msgid "Switches workspaces."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3272
+msgid "Moves focused window to another workspace."
+msgstr ""
+
+#. Windows
+#: ../plugins/unityshell/src/unityshell.cpp:3279
+msgid "Windows"
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3281
+msgid "Spreads all windows in the current workspace."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3287
+msgid "Minimises all windows."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3293
+msgid "Maximises the current window."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3299
+msgid "Restores or minimises the current window."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3304
+msgid " or Right"
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3305
+msgid "Semi-maximise the current window."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3311
+msgid "Closes the current window."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3317
+msgid "Opens the window accessibility menu."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3319
+msgid "Alt + Space"
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3322
+msgid "Places the window in corresponding position."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3324
+msgid "Ctrl + Alt + Num"
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3326
+#: ../plugins/unityshell/src/unityshell.cpp:3332
+msgid " Drag"
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3327
+msgid "Moves the window."
+msgstr ""
+
+#: ../plugins/unityshell/src/unityshell.cpp:3333
+msgid "Resizes the window."
+msgstr ""
+
+#. anonymous namespace
+#. namespace unity
+#: ../plugins/unityshell/unityshell.xml.in.h:1
+msgid "Ubuntu Unity Plugin"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:2
+msgid "Plugin to draw the Unity Shell"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:3
+msgid "Behaviour"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:4
+#: ../gnome/50-unity-launchers.xml.in.h:2
+msgid "Key to show the HUD"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:5
+msgid "Make the HUD appear with this key"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:6
+msgid "Hide Launcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:7
+msgid ""
+"Make the launcher hide automatically after some time of inactivity: always "
+"or just when the focussed window is not over the launcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:8
+msgid "Never"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:9
+msgid "Autohide"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:10
+msgid "Reveal Trigger"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:11
+msgid "Left Edge"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:12
+msgid "Top Left Corner"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:13
+msgid "Key to show the launcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:14
+msgid "Make the launcher appear with that key"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:15
+msgid "Key to put keyboard-focus on launcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:16
+msgid ""
+"Set the keyboard-focus on the launcher so it can be navigated with the "
+"cursor-keys"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:17
+msgid "Key to execute a command"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:18
+msgid "Key to open a folder or execute a command"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:19
+msgid "Key to open the first panel menu"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:20
+msgid ""
+"Open the first menu on the panel, allowing keyboard navigation thereafter."
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:21
+msgid "Key to start the launcher application switcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:22
+msgid "Switch the applications using the launcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:23
+msgid "Key to start the launcher application switcher in reverse"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:24
+msgid "Switch the applications using the launcher, in reverse order"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:26
+msgid "Automatically grid windows on timer in switcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:27
+msgid ""
+"After a short time, spread multiple windows of the same application out into "
+"a grid"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:28
+msgid "Bias alt-tab to prefer windows on the current viewport"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:29
+msgid "Bias the switcher to windows which are placed on the current viewport"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:30
+msgid "Disable Show Desktop in the switcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:31
+msgid "Disables the Show Desktop icon in the switcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:32
+msgid "Key to start the switcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:33
+msgid "Start switching between windows"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:34
+msgid "Key to start the switcher in reverse"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:35
+msgid "Start switching between windows in reverse order"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:36
+msgid "Key to start the switcher for all viewports"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:37
+msgid "Start switching between windows on all viewports"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:38
+msgid "Key to start the switcher in reverse for all viewports"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:39
+msgid "Start switching between windows on all viewports, in reverse order"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:40
+msgid "Go right in the switcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:41
+msgid "Navigate one window right in the switcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:42
+msgid "Go left in the switcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:43
+msgid "Navigate one window left in the switcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:44
+msgid "Key to expose the windows in the switcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:45
+msgid ""
+"Display a preview of the selected window; grid if there is multiple windows "
+"of that application"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:46
+msgid "Key to collapse windows in the switcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:47
+msgid "Return the previews to icons in the switcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:48
+msgid "Key to flip through windows in the switcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:49
+msgid "Flip through all the windows present in the switcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:50
+msgid "Key to flip through windows in the switcher backwards"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:51
+msgid "Flip through all the windows present in the switcher, in reverse order"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:52
+msgid "Show minimized windows in switcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:53
+msgid ""
+"Hack to enable minimized windows in switcher. Disable and report bugs if "
+"problems are caused"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:54
+msgid "Experimental"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:55
+msgid "Background Color"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:56
+msgid "Background color override used for testing purposes"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:57
+msgid "Backlight Mode"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:58
+msgid "Change how the icons are backlit"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:59
+msgid "Backlight Always On"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:60
+msgid "Backlight Toggles"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:61
+msgid "Backlight Always Off"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:62
+msgid "Edge Illumination Toggles"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:63
+msgid "Backlight and Edge Illumination Toggles"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:64
+msgid "Launch Animation"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:65
+msgid ""
+"Animation played when a launcher icon is in the process of spawning a process"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:66
+msgid "None"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:67
+msgid "Pulse Until Running"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:68
+msgid "Blink"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:69
+msgid "Urgent Animation"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:70
+msgid "Animation played when a launcher icon is in the urgent state"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:71
+msgid "Pulse"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:72
+msgid "Wiggle"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:73
+msgid "Panel Opacity"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:74
+msgid "The opacity of the Panel background."
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:75
+msgid "Panel Opacity for Maximized Windows Toggle."
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:76
+msgid ""
+"When a window is maximized and visible in the current viewport, the panel "
+"opacity is disabled"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:77
+msgid "Launcher Opacity"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:78
+msgid "The opacity of the Launcher background."
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:79
+msgid "Launcher icon size"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:80
+msgid "The size of the launcher icons"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:81
+msgid "Launcher Reveal Edge Responsiveness"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:82
+msgid ""
+"A conglomerate setting that modifies the overall responsiveness of the "
+"launcher reveal"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:83
+msgid "Launcher Reveal Pressure"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:84
+msgid "Amount of mouse pressure required to reveal launcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:85
+msgid "Launcher Edge Stop Overcome Pressure"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:86
+msgid "Amount of mouse pressure required to push into the next monitor"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:87
+msgid "Pressure Decay Rate"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:88
+msgid "The rate at which mouse pressure decays"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:89
+msgid "Edge Stop Velocity"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:90
+msgid "The maximum velocity at which the mouse will still be stopped"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:91
+msgid "Duration of Sticky Edge Release after Break"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:92
+msgid ""
+"Sticky edges deactivated for number of milliseconds after the user breaks "
+"the barrier"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:93
+msgid "Hide Animation"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:94
+msgid "Animation played when the launcher is showing or hiding"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:95
+msgid "Fade on bfb and Slide"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:96
+msgid "Slide only"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:97
+msgid "Fade only"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:98
+msgid "Fade and Slide"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:99
+msgid "Dash Blur"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:100
+msgid "Type of blur in the Dash"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:101
+msgid "No Blur"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:102
+msgid "Static Blur"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:103
+msgid "Active Blur"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:104
+msgid "Automaximize value"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:105
+msgid "The minimum value to trigger automaximize."
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:106
+msgid "Show Devices"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:107
+msgid "Show devices in the launcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:108
+msgid "Only Mounted"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:109
+msgid "Always"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:110
+msgid "Enable Shortcut Hints Overlay"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:111
+msgid "Show \"Desktop Icon\" in the launcher"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:112
+msgid "Enable/Disable \"Show Desktop Icon\" in the launcher."
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:113
+msgid "Menus Fade-in duration"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:114
+msgid ""
+"Duration (in milliseconds) of the menus fade-in animation, used when the "
+"mouse goes over the top-panel."
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:115
+msgid "Menus fade-out duration"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:116
+msgid ""
+"Duration (in milliseconds) of the menus fade-out animation, used when the "
+"mouse goes over the top-panel."
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:117
+msgid "Menus discovery duration"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:118
+msgid ""
+"How many seconds the menus should be shown when a new application has been "
+"launched."
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:119
+msgid "Menus discovery fade-in duration"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:120
+msgid ""
+"Duration (in milliseconds) of the menus fade-in animation, used when the "
+"menus of a new launched application have been shown."
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:121
+msgid "Menus discovery fade-out duration"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:122
+msgid ""
+"Duration (in milliseconds) of the menus fade-out animation, used when the "
+"menus of a new launched application have been shown."
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:123
+msgid "Launcher Monitors"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:124
+msgid "Monitors on which launchers will be displayed"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:125
+msgid "All Desktops"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:126
+msgid "Primary Desktop"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:127
+msgid "Launcher Capture Mouse"
+msgstr ""
+
+#: ../plugins/unityshell/unityshell.xml.in.h:128
+msgid "Determines if the launcher edges should capture the mouse"
+msgstr ""
+
+#: ../shortcuts/ShortcutHintPrivate.cpp:85
+msgid "Left Mouse"
+msgstr ""
+
+#: ../shortcuts/ShortcutHintPrivate.cpp:86
+msgid "Middle Mouse"
+msgstr ""
+
+#: ../shortcuts/ShortcutHintPrivate.cpp:87
+msgid "Right Mouse"
+msgstr ""
+
+#: ../shortcuts/ShortcutView.cpp:79
+msgid "Keyboard Shortcuts"
+msgstr ""
+
+#: ../unity-shared/SearchBar.cpp:185
+msgid "Filter results"
+msgstr ""
+
+#. namespace unity
+#: ../gnome/50-unity-launchers.xml.in.h:1
+msgid "Launchers"
 msgstr ""
