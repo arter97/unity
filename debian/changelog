@@ -1,3 +1,18 @@
+unity (6.6.0-0ubuntu2) quantal; urgency=low
+
+  [ Łukasz 'sil2100' Zemczak ]
+  * debian/unity-common.maintscript:
+    - Added routines for removing the unused
+      /etc/compizconfig/upgrades/com.canonical.unity.unity.03.upgrade file
+  * debian/control, debian/compat:
+    - Bumped the debhelper version to the 9 series
+
+  [ Didier Roche ]
+  * Fix the above versionning for removing the conffile
+  * build-dep on compiz as getting an ABI break.
+
+ -- Didier Roche <didrocks@ubuntu.com>  Mon, 01 Oct 2012 14:25:09 +0200
+
 unity (6.6.0-0ubuntu1) quantal-proposed; urgency=low
 
   * New upstream release.
