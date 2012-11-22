@@ -1,3 +1,11 @@
+unity (6.12.0-0ubuntu3) raring; urgency=low
+
+  * Apply 2 upstream patches to fix FTBFS on raring:
+    - gettext cmake support change with new cmake
+    - include directly iostream needed for std::cout
+
+ -- Didier Roche <didrocks@ubuntu.com>  Thu, 22 Nov 2012 12:31:58 +0100
+
 unity (6.12.0-0ubuntu2) raring; urgency=low
 
   * debian/control.in: Recommends gnome-control-center-unity
