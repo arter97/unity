@@ -1,3 +1,9 @@
+unity (6.12.0-0ubuntu4) raring; urgency=low
+
+  * Really fix cmake now
+
+ -- Didier Roche <didrocks@ubuntu.com>  Thu, 22 Nov 2012 14:51:43 +0100
+
 unity (6.12.0-0ubuntu3) raring; urgency=low
 
   * Apply 2 upstream patches to fix FTBFS on raring:

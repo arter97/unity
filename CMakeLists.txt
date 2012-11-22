@@ -103,12 +103,12 @@ add_custom_command (OUTPUT ${CMAKE_SOURCE_DIR}/po/unity.pot
 		WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 		)
 
-if (${GETTEXT_FOUND} STREQUAL "TRUE")
+if (GETTEXT_FOUND)
         set (HAVE_GETTEXT true)
         file (GLOB _translations ${CMAKE_SOURCE_DIR}/po/*.po)
         GETTEXT_CREATE_TRANSLATIONS (${CMAKE_SOURCE_DIR}/po/${PROJECT_NAME}.pot
                 ALL ${_translations})
-endif (${GETTEXT_FOUND} STREQUAL "TRUE")
+endif (GETTEXT_FOUND)
 
 #
 # Enable or disable boot logging
