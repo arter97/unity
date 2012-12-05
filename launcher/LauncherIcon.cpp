@@ -23,10 +23,8 @@
 #include <Nux/VScrollBar.h>
 #include <Nux/HLayout.h>
 #include <Nux/VLayout.h>
-#include <Nux/MenuPage.h>
 #include <Nux/WindowCompositor.h>
 #include <Nux/BaseWindow.h>
-#include <Nux/MenuPage.h>
 #include <NuxCore/Color.h>
 #include <NuxCore/Logger.h>
 
@@ -43,9 +41,8 @@
 #include "QuicklistMenuItemRadio.h"
 
 #include "MultiMonitor.h"
-#include "unity-shared/WindowManager.h"
 
-#include "unity-shared/ubus-server.h"
+#include "unity-shared/UBusWrapper.h"
 #include "unity-shared/UBusMessages.h"
 #include <UnityCore/GLibWrapper.h>
 #include <UnityCore/Variant.h>
@@ -54,10 +51,10 @@ namespace unity
 {
 namespace launcher
 {
+DECLARE_LOGGER(logger, "unity.launcher.icon");
 
 namespace
 {
-nux::logging::Logger logger("unity.launcher");
 const std::string DEFAULT_ICON = "application-default-icon";
 const std::string MONO_TEST_ICON = "gnome-home";
 const std::string UNITY_THEME_NAME = "unity-icon-theme";
@@ -220,8 +217,9 @@ LauncherIcon::Activate(ActionArg arg)
 {
   /* Launcher Icons that handle spread will adjust the spread state
    * accordingly, for all other icons we should terminate spread */
-  if (WindowManager::Default()->IsScaleActive() && !HandlesSpread ())
-    WindowManager::Default()->TerminateScale();
+  WindowManager& wm = WindowManager::Default();
+  if (wm.IsScaleActive() && !HandlesSpread ())
+    wm.TerminateScale();
 
   ActivateLauncherIcon(arg);
 
@@ -231,10 +229,11 @@ LauncherIcon::Activate(ActionArg arg)
 void
 LauncherIcon::OpenInstance(ActionArg arg)
 {
-  if (WindowManager::Default()->IsScaleActive())
-    WindowManager::Default()->TerminateScale();
+  WindowManager& wm = WindowManager::Default();
+  if (wm.IsScaleActive())
+    wm.TerminateScale();
 
-  OpenInstanceLauncherIcon(arg);
+  OpenInstanceLauncherIcon();
 
   UpdateQuirkTime(Quirk::LAST_ACTION);
 }
@@ -361,7 +360,7 @@ nux::BaseTexture* LauncherIcon::TextureFromGtkTheme(std::string icon_name, int s
 
   // FIXME: we need to create some kind of -unity postfix to see if we are looking to the unity-icon-theme
   // for dedicated unity icons, then remove the postfix and degrade to other icon themes if not found
-  if (icon_name == "workspace-switcher" && IsMonoDefaultTheme())
+  if (icon_name.find("workspace-switcher") == 0)
     result = TextureFromSpecificGtkTheme(GetUnityTheme(), icon_name, size, update_glow_colors);
 
   if (!result)
@@ -612,16 +611,16 @@ bool LauncherIcon::OpenQuicklist(bool select_first_item, int monitor)
   int tip_x = geo.x + geo.width - 4 * geo.width / 48;
   int tip_y = _center[monitor].y;
 
-  auto win_manager = WindowManager::Default();
+  WindowManager& win_manager = WindowManager::Default();
 
-  if (win_manager->IsScaleActive())
-    win_manager->TerminateScale();
+  if (win_manager.IsScaleActive())
+    win_manager.TerminateScale();
 
   /* If the expo plugin is active, we need to wait it to be termated, before
    * shwing the icon quicklist. */
-  if (win_manager->IsExpoActive())
+  if (win_manager.IsExpoActive())
   {
-    on_expo_terminated_connection = win_manager->terminate_expo.connect([&, tip_x, tip_y]() {
+    on_expo_terminated_connection = win_manager.terminate_expo.connect([&, tip_x, tip_y]() {
         QuicklistManager::Default()->ShowQuicklist(_quicklist.GetPointer(), tip_x, tip_y);
         on_expo_terminated_connection.disconnect();
     });
@@ -697,18 +696,20 @@ LauncherIcon::OnCenterStabilizeTimeout()
 }
 
 void
-LauncherIcon::SetCenter(nux::Point3 center, int monitor, nux::Geometry geo)
+LauncherIcon::SetCenter(nux::Point3 const& center, int monitor, nux::Geometry const& geo)
 {
-  center.x += geo.x;
-  center.y += geo.y;
-  _center[monitor] = center;
   _parent_geo[monitor] = geo;
+
+  nux::Point3& new_center = _center[monitor];
+  new_center.x = center.x + geo.x;
+  new_center.y = center.y + geo.y;
+  new_center.z = center.z;
 
   if (monitor == _last_monitor)
   {
     int tip_x, tip_y;
     tip_x = geo.x + geo.width - 4 * geo.width / 48;
-    tip_y = _center[monitor].y;
+    tip_y = new_center.y;
 
     if (_quicklist && _quicklist->IsVisible())
       QuicklistManager::Default()->ShowQuicklist(_quicklist.GetPointer(), tip_x, tip_y);
@@ -716,7 +717,7 @@ LauncherIcon::SetCenter(nux::Point3 center, int monitor, nux::Geometry geo)
       _tooltip->ShowTooltipWithTipAt(tip_x, tip_y);
   }
 
-  auto cb_func = sigc::mem_fun(this, &LauncherIcon::OnCenterStabilizeTimeout);
+  auto const& cb_func = sigc::mem_fun(this, &LauncherIcon::OnCenterStabilizeTimeout);
   _source_manager.AddTimeout(500, cb_func, CENTER_STABILIZE_TIMEOUT);
 }
 
@@ -800,6 +801,7 @@ LauncherIcon::Present(float present_urgency, int length)
 
   _present_urgency = CLAMP(present_urgency, 0.0f, 1.0f);
   SetQuirk(Quirk::PRESENTED, true);
+  SetQuirk(Quirk::UNFOLDED, true);
 }
 
 void
@@ -810,6 +812,7 @@ LauncherIcon::Unpresent()
 
   _source_manager.Remove(PRESENT_TIMEOUT);
   SetQuirk(Quirk::PRESENTED, false);
+  SetQuirk(Quirk::UNFOLDED, false);
 }
 
 void
@@ -869,8 +872,7 @@ LauncherIcon::SetQuirk(LauncherIcon::Quirk quirk, bool value)
       Present(0.5f, 1500);
     }
 
-    UBusServer* ubus = ubus_server_get_default();
-    ubus_server_send_message(ubus, UBUS_LAUNCHER_ICON_URGENT_CHANGED, g_variant_new_boolean(value));
+    UBusManager::SendMessage(UBUS_LAUNCHER_ICON_URGENT_CHANGED, g_variant_new_boolean(value));
   }
 
   if (quirk == Quirk::VISIBLE)

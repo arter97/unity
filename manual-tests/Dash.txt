@@ -116,10 +116,10 @@ Expected Result:
 Test that when an on screen keyboard is used it will not close the Dash.
 ------------------------------------------------------------------------
 This tests shows that an on screen keyboards will not close the dash when clicking on it.
-see lp:1058705)
+(see lp:1058705)
 
 Setup:
-Open the on screen keyboard Onboard.
+#. Open the on screen keyboard Onboard.
 #. Move Onboard to the bottom right of the screen.
 #. Open the Dash
 #. Ensure the Dash is not in fullscreen mode.

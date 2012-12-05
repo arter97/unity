@@ -26,20 +26,15 @@
 #include <UnityCore/Variant.h>
 
 #include "SimpleLauncherIcon.h"
-#include "unity-shared/PluginAdapter.h"
 
-#include "unity-shared/ubus-server.h"
+#include "unity-shared/UBusWrapper.h"
 #include "unity-shared/UBusMessages.h"
 
 namespace unity
 {
 namespace launcher
 {
-
-namespace
-{
-  nux::logging::Logger logger("unity.dash.CategoryViewGrid");
-}
+DECLARE_LOGGER(logger, "unity.launcher.icon");
 
 NUX_IMPLEMENT_OBJECT_TYPE(SimpleLauncherIcon);
 
@@ -93,8 +88,7 @@ void SimpleLauncherIcon::OnMouseLeave(int monitor)
 void SimpleLauncherIcon::ActivateLauncherIcon(ActionArg arg)
 {
   activate.emit();
-  ubus_server_send_message(ubus_server_get_default(),
-                           UBUS_PLACE_VIEW_CLOSE_REQUEST,
+  UBusManager::SendMessage(UBUS_PLACE_VIEW_CLOSE_REQUEST,
                            g_variant_new_boolean(FALSE));
 }
 
@@ -109,9 +103,9 @@ nux::BaseTexture* SimpleLauncherIcon::GetTextureForSize(int size)
     return 0;
 
   if (icon_string[0] == '/')
-    texture_map[size] = TextureFromPath(icon_string.c_str(), size);
+    texture_map[size] = TextureFromPath(icon_string, size);
   else
-    texture_map[size] = TextureFromGtkTheme(icon_string.c_str(), size);
+    texture_map[size] = TextureFromGtkTheme(icon_string, size);
   return texture_map[size];
 }
 

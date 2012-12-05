@@ -28,17 +28,15 @@
 #include <gdk/gdk.h>
 #include <unity-protocol.h>
 
+#include <UnityCore/Variant.h>
 #include "unity-shared/IntrospectableWrappers.h"
 #include "unity-shared/Timer.h"
-#include "unity-shared/ubus-server.h"
+#include "unity-shared/UBusWrapper.h"
 #include "unity-shared/UBusMessages.h"
 #include "ResultViewGrid.h"
 #include "math.h"
 
-namespace
-{
-nux::logging::Logger logger("unity.dash.results");
-}
+DECLARE_LOGGER(logger, "unity.dash.results");
 
 namespace unity
 {
@@ -75,7 +73,7 @@ ResultViewGrid::ResultViewGrid(NUX_FILE_LINE_DECL)
   key_nav_focus_change.connect(sigc::mem_fun(this, &ResultViewGrid::OnKeyNavFocusChange));
   key_nav_focus_activate.connect([&] (nux::Area *area) 
   { 
-    UriActivated.emit (focused_uri_, ResultView::ActivateType::DIRECT); 
+    Activate(focused_uri_, selected_index_, ResultView::ActivateType::DIRECT);
   });
   key_down.connect(sigc::mem_fun(this, &ResultViewGrid::OnKeyDown));
   mouse_move.connect(sigc::mem_fun(this, &ResultViewGrid::MouseMove));
@@ -108,7 +106,7 @@ ResultViewGrid::ResultViewGrid(NUX_FILE_LINE_DECL)
     gchar* uri = NULL;
     gchar* proposed_unique_id = NULL;
     g_variant_get(data, "(iss)", &nav_mode, &uri, &proposed_unique_id);
-   
+
     if (std::string(proposed_unique_id) != unique_id())
       return;
 
@@ -130,7 +128,7 @@ ResultViewGrid::ResultViewGrid(NUX_FILE_LINE_DECL)
         LOG_ERROR(logger) << "requested to activated a result that does not exist: " << current_index;
         return;
       }
-      
+
       // closed
       if (nav_mode == 0)
       {
@@ -140,30 +138,9 @@ ResultViewGrid::ResultViewGrid(NUX_FILE_LINE_DECL)
       {
         activated_uri_ = GetUriForIndex(current_index);
         LOG_DEBUG(logger) << "activating preview for index: " 
-                          << "(" << current_index << ")"
-                          << " " << activated_uri_;
-        int left_results = current_index;
-        int right_results = num_results ? (num_results - current_index) - 1 : 0;
-
-        int row_y = padding + GetRootGeometry().y;
-        int row_size = renderer_->height + vertical_spacing;
-        int row_height = row_size;
-
-        if (GetItemsPerRow())
-        {
-          int num_row = GetNumResults() / GetItemsPerRow();
-          if (GetNumResults() % GetItemsPerRow())
-          {
-            ++num_row;
-          }
-          int row_index = current_index / GetItemsPerRow();
-
-          row_y += row_index * row_size;
-        }
-        
-        ubus_.SendMessage(UBUS_DASH_PREVIEW_INFO_PAYLOAD, 
-                                g_variant_new("(iiii)", row_y, row_height, left_results, right_results));
-        UriActivated.emit(activated_uri_, ActivateType::PREVIEW);
+                  << "(" << current_index << ")"
+                  << " " << activated_uri_;
+        Activate(activated_uri_, current_index, ActivateType::PREVIEW);
       }
 
     }
@@ -174,6 +151,33 @@ ResultViewGrid::ResultViewGrid(NUX_FILE_LINE_DECL)
   });
 
   SetDndEnabled(true, false);
+}
+
+void ResultViewGrid::Activate(std::string const& uri, int index, ResultView::ActivateType type)
+{
+  unsigned num_results = GetNumResults();
+
+  int left_results = index;
+  int right_results = num_results ? (num_results - index) - 1 : 0;
+  //FIXME - just uses y right now, needs to use the absolute position of the bottom of the result 
+  // (jay) Here is the fix: Compute the y position of the row where the item is located.
+  int row_y = padding + GetRootGeometry().y;
+  int row_height = renderer_->height + vertical_spacing;
+
+  if (GetItemsPerRow())
+  {
+    int num_row = GetNumResults() / GetItemsPerRow();
+    if (GetNumResults() % GetItemsPerRow())
+    {
+      ++num_row;
+    }
+    int row_index = index / GetItemsPerRow();
+
+    row_y += row_index * row_height;
+  }
+
+  glib::Variant data(g_variant_new("(iiii)", row_y, row_height, left_results, right_results));
+  UriActivated.emit(uri, type, data);
 }
 
 void ResultViewGrid::QueueLazyLoad()
@@ -347,6 +351,8 @@ bool ResultViewGrid::InspectKeyEvent(unsigned int eventType, unsigned int keysym
     case NUX_KP_ENTER:
       direction = nux::KeyNavDirection::KEY_NAV_ENTER;
       break;
+    case XK_Menu:
+      return true;
     default:
       direction = nux::KeyNavDirection::KEY_NAV_NONE;
       break;
@@ -478,6 +484,11 @@ void ResultViewGrid::OnKeyDown (unsigned long event_type, unsigned long event_ke
   ubus_.SendMessage(UBUS_RESULT_VIEW_KEYNAV_CHANGED,
                     g_variant_new("(iiii)", focused_x, focused_y, renderer_->width(), renderer_->height()));
   selection_change.emit();
+
+  if (event_type == nux::NUX_KEYDOWN && event_keysym == XK_Menu)
+  {
+    Activate(focused_uri_, selected_index_, ActivateType::PREVIEW);
+  }
 }
 
 nux::Area* ResultViewGrid::KeyNavIteration(nux::KeyNavDirection direction)
@@ -495,7 +506,7 @@ void ResultViewGrid::OnKeyNavFocusChange(nux::Area *area, bool has_focus, nux::K
       focused_uri_ = (*first_iter).uri;
       selected_index_ = 0;
     }
-    
+
     int items_per_row = GetItemsPerRow();
     unsigned num_results = GetNumResults();
 
@@ -508,7 +519,7 @@ void ResultViewGrid::OnKeyNavFocusChange(nux::Area *area, bool has_focus, nux::K
       int total_rows = std::ceil(num_results / (double)items_per_row);
       selected_index_ = items_per_row * (total_rows-1);
     }
-    
+
     if (direction != nux::KEY_NAV_NONE)
     {
       std::tuple<int, int> focused_coord = GetResultPosition(selected_index_);
@@ -649,7 +660,7 @@ void ResultViewGrid::Draw(nux::GraphicsEngine& GfxContext, bool force_draw)
           offset_x = 0;
           offset_y = 0;
         }
-        
+
         nux::Geometry render_geo(x_position, y_position, renderer_->width, renderer_->height);
         Result result(*GetIteratorAtRow(index));
         renderer_->Render(GfxContext, result, state, render_geo, offset_x, offset_y);
@@ -703,36 +714,12 @@ void ResultViewGrid::MouseClick(int x, int y, unsigned long button_flags, unsign
     Result result = *it;
     selected_index_ = index;
     focused_uri_ = result.uri;
-    if (nux::GetEventButton(button_flags) == nux::MouseButton::MOUSE_BUTTON3)
-    {
-      activated_uri_ = result.uri();
-      UriActivated.emit(result.uri, ResultView::ActivateType::PREVIEW);
-      int left_results = index;
-      int right_results = (num_results - index) - 1;
-      //FIXME - just uses y right now, needs to use the absolute position of the bottom of the result 
-      // (jay) Here is the fix: Compute the y position of the row where the item is located.
-      int row_y = padding + GetRootGeometry().y;
-      int row_size = renderer_->height + vertical_spacing;
-      int row_height = row_size;
 
-      if (GetItemsPerRow())
-      {
-        int num_row = GetNumResults() / GetItemsPerRow();
-        if (GetNumResults() % GetItemsPerRow())
-        {
-          ++num_row;
-        }
-        int row_index = index / GetItemsPerRow();
+    ActivateType type = nux::GetEventButton(button_flags) == nux::MouseButton::MOUSE_BUTTON3 ?  ResultView::ActivateType::PREVIEW :
+                                                                                                ResultView::ActivateType::DIRECT;
 
-        row_y += row_index * row_size;
-      }
-      ubus_.SendMessage(UBUS_DASH_PREVIEW_INFO_PAYLOAD, 
-                                g_variant_new("(iiii)", row_y, row_height, left_results, right_results));
-    }
-    else
-    {
-      UriActivated.emit(result.uri, ResultView::ActivateType::DIRECT);
-    }
+    activated_uri_ = result.uri();
+    Activate(activated_uri_, index, type);
   }
 }
 
@@ -777,7 +764,7 @@ std::tuple<int, int> ResultViewGrid::GetResultPosition(const unsigned int& index
   int items_per_row = GetItemsPerRow();
   int column_size = renderer_->width + horizontal_spacing + extra_horizontal_spacing_;
   int row_size = renderer_->height + vertical_spacing;
-  
+
   int y = row_size * (index / items_per_row) + padding;
   int x = column_size * (index % items_per_row) + padding;
 
@@ -788,9 +775,9 @@ std::tuple<int, int> ResultViewGrid::GetResultPosition(const unsigned int& index
    DND code
    --------
 */
-bool
-ResultViewGrid::DndSourceDragBegin()
+bool ResultViewGrid::DndSourceDragBegin()
 {
+#ifdef USE_X11
   unsigned num_results = GetNumResults();
   unsigned drag_index = GetIndexAtPosition(last_mouse_down_x_, last_mouse_down_y_);
 
@@ -814,10 +801,12 @@ ResultViewGrid::DndSourceDragBegin()
                      << current_drag_icon_name_;
 
   return true;
+#else
+  return false;
+#endif
 }
 
-GdkPixbuf *
-_icon_hint_get_drag_pixbuf (std::string icon_hint)
+GdkPixbuf* _icon_hint_get_drag_pixbuf(std::string icon_hint)
 {
   GdkPixbuf *pbuf;
   GtkIconTheme *theme;
@@ -922,8 +911,7 @@ ResultViewGrid::DndSourceGetDragTypes()
   return result;
 }
 
-const char*
-ResultViewGrid::DndSourceGetDataForType(const char* type, int* size, int* format)
+const char* ResultViewGrid::DndSourceGetDataForType(const char* type, int* size, int* format)
 {
   *format = 8;
 
@@ -939,9 +927,9 @@ ResultViewGrid::DndSourceGetDataForType(const char* type, int* size, int* format
   }
 }
 
-void
-ResultViewGrid::DndSourceDragFinished(nux::DndAction result)
+void ResultViewGrid::DndSourceDragFinished(nux::DndAction result)
 {
+#ifdef USE_X11
   UnReference();
   last_mouse_down_x_ = -1;
   last_mouse_down_y_ = -1;
@@ -960,6 +948,7 @@ ResultViewGrid::DndSourceDragFinished(nux::DndAction result)
     XWarpPointer(display, None, None, 0, 0, 0, 0, 0, 0);
     XSync(display, 0);
   }
+#endif
 }
 
 int
@@ -968,7 +957,7 @@ ResultViewGrid::GetSelectedIndex()
   return selected_index_;
 }
 
-debug::Introspectable* ResultViewGrid::CreateResultWrapper(Result const& result, int index)
+debug::ResultWrapper* ResultViewGrid::CreateResultWrapper(Result const& result, int index)
 {
   int x_offset = GetAbsoluteX();
   int y_offset = GetAbsoluteY();
@@ -980,6 +969,24 @@ debug::Introspectable* ResultViewGrid::CreateResultWrapper(Result const& result,
     renderer_->width,
     renderer_->height);
   return new debug::ResultWrapper(result, geo);
+}
+
+void ResultViewGrid::UpdateResultWrapper(debug::ResultWrapper* wrapper, Result const& result, int index)
+{
+  if (!wrapper)
+    return;
+
+  int x_offset = GetAbsoluteX();
+  int y_offset = GetAbsoluteY();
+
+  std::tuple<int, int> result_coord = GetResultPosition(index);
+
+  nux::Geometry geo(std::get<0>(result_coord) + x_offset,
+    std::get<1>(result_coord) + y_offset,
+    renderer_->width,
+    renderer_->height);
+
+  wrapper->UpdateGeometry(geo);
 }
 
 

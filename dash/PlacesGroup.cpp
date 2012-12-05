@@ -25,20 +25,15 @@
 
 #include "PlacesGroup.h"
 #include <glib.h>
+#include "config.h"
 #include <glib/gi18n-lib.h>
 
 #include <UnityCore/Variant.h>
 #include <UnityCore/GLibWrapper.h>
 
 #include "unity-shared/StaticCairoText.h"
-#include "unity-shared/ubus-server.h"
+#include "unity-shared/UBusWrapper.h"
 #include "unity-shared/UBusMessages.h"
-
-
-namespace
-{
-nux::logging::Logger logger("unity.dash.placesgroup");
-}
 
 #include "ResultView.h"
 #include "ResultViewGrid.h"
@@ -48,6 +43,7 @@ nux::logging::Logger logger("unity.dash.placesgroup");
 #include "FilterBasicButton.h"
 
 
+DECLARE_LOGGER(logger, "unity.dash.placesgroup");
 namespace unity
 {
 namespace
@@ -111,9 +107,10 @@ protected:
 NUX_IMPLEMENT_OBJECT_TYPE(PlacesGroup);
 
 PlacesGroup::PlacesGroup(dash::StyleInterface& style)
-  : AbstractPlacesGroup(),
+  : nux::View(NUX_TRACKER_LOCATION),
     _style(style),
     _child_view(nullptr),
+    _using_nofilters_background(true),
     _is_expanded(false),
     _n_visible_items_in_unexpand_mode(0),
     _n_total_items(0),
@@ -148,7 +145,7 @@ PlacesGroup::PlacesGroup(dash::StyleInterface& style)
   _group_layout->AddLayout(new nux::SpaceLayout(top_space, top_space, top_space, top_space), 0);
 
   _header_view = new HeaderView(NUX_TRACKER_LOCATION);
-  _group_layout->AddView(_header_view, 0, nux::MINOR_POSITION_TOP, nux::MINOR_SIZE_FULL);
+  _group_layout->AddView(_header_view, 0, nux::MINOR_POSITION_START, nux::MINOR_SIZE_FULL);
 
   _header_layout = new nux::HLayout(NUX_TRACKER_LOCATION);
   _header_layout->SetLeftAndRightPadding(_style.GetCategoryHeaderLeftPadding(), 0);
@@ -199,7 +196,7 @@ PlacesGroup::PlacesGroup(dash::StyleInterface& style)
   _name->mouse_click.connect(sigc::mem_fun(this, &PlacesGroup::RecvMouseClick));
   _expand_label->mouse_click.connect(sigc::mem_fun(this, &PlacesGroup::RecvMouseClick));
   _expand_icon->mouse_click.connect(sigc::mem_fun(this, &PlacesGroup::RecvMouseClick));
-  
+
   key_nav_focus_change.connect([&](nux::Area* area, bool has_focus, nux::KeyNavDirection direction)
   {
     if (!has_focus)
@@ -224,7 +221,7 @@ PlacesGroup::PlacesGroup(dash::StyleInterface& style)
     nux::TexCoordXForm texxform;
     if (status && _using_nofilters_background)
     {
-      _background_layer.reset(new nux::TextureLayer(_background->GetDeviceTexture(), 
+      _background_layer.reset(new nux::TextureLayer(_background->GetDeviceTexture(),
                               texxform, 
                               nux::color::White,
                               false,
@@ -233,12 +230,12 @@ PlacesGroup::PlacesGroup(dash::StyleInterface& style)
     }
     else if (!status && !_using_nofilters_background)
     {
-      _background_layer.reset(new nux::TextureLayer(_background_nofilters->GetDeviceTexture(), 
-                              texxform, 
+      _background_layer.reset(new nux::TextureLayer(_background_nofilters->GetDeviceTexture(),
+                              texxform,
                               nux::color::White,
                               false,
                               rop));
-      
+
       _using_nofilters_background = true;
     }
     QueueDraw();
@@ -330,9 +327,9 @@ PlacesGroup::SetChildView(dash::ResultView* view)
   _group_layout->AddLayout(new nux::SpaceLayout(2,2,2,2), 0); // top padding
   _group_layout->AddLayout(layout, 1);
 
-  view->results_per_row.changed.connect([&] (int results_per_row) 
+  view->results_per_row.changed.connect([&] (int results_per_row)
   {
-    _n_visible_items_in_unexpand_mode = results_per_row;  
+    _n_visible_items_in_unexpand_mode = results_per_row;
     RefreshLabel();
   });
 
@@ -424,7 +421,6 @@ PlacesGroup::OnIdleRelayout()
 {
   if (GetChildView())
   {
-    
 
     Refresh();
     QueueDraw();
@@ -477,7 +473,7 @@ PlacesGroup::DrawContent(nux::GraphicsEngine& graphics_engine, bool force_draw)
 
     graphics_engine.GetRenderStates().SetBlend(current_alpha_blend, current_src_blend_factor, current_dest_blend_factor);
   }
-  
+
   if (ShouldBeHighlighted())
   {
     nux::Geometry geo(_header_layout->GetGeometry());
@@ -496,10 +492,10 @@ PlacesGroup::DrawContent(nux::GraphicsEngine& graphics_engine, bool force_draw)
     bg_width = _background->GetWidth();
 
   bg_geo.x = std::max(bg_geo.width - bg_width,0);
-  
+
   bg_geo.width = std::min(bg_width, bg_geo.GetWidth()) + 1; // to render into a space left over by the scrollview
   bg_geo.height = _background->GetHeight();
-  
+
   _background_layer->SetGeometry(bg_geo);
   _background_layer->Renderlayer(graphics_engine);
 
@@ -507,11 +503,6 @@ PlacesGroup::DrawContent(nux::GraphicsEngine& graphics_engine, bool force_draw)
 
   graphics_engine.PopClippingRectangle();
 
-}
-
-void PlacesGroup::PostDraw(nux::GraphicsEngine& graphics_engine,
-                           bool                 forceDraw)
-{
 }
 
 void

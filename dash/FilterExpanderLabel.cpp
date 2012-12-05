@@ -22,7 +22,6 @@
 
 #include "unity-shared/DashStyle.h"
 #include "FilterExpanderLabel.h"
-#include "unity-shared/LineSeparator.h"
 
 namespace
 {
@@ -83,7 +82,6 @@ NUX_IMPLEMENT_OBJECT_TYPE(FilterExpanderLabel);
 FilterExpanderLabel::FilterExpanderLabel(std::string const& label, NUX_FILE_LINE_DECL)
   : nux::View(NUX_FILE_LINE_PARAM)
   , expanded(true)
-  , draw_separator(false)
   , layout_(nullptr)
   , top_bar_layout_(nullptr)
   , expander_view_(nullptr)
@@ -92,43 +90,9 @@ FilterExpanderLabel::FilterExpanderLabel(std::string const& label, NUX_FILE_LINE
   , cairo_label_(nullptr)
   , raw_label_(label)
   , label_("label")
-  , separator_(nullptr)
 {
   expanded.changed.connect(sigc::mem_fun(this, &FilterExpanderLabel::DoExpandChange));
   BuildLayout();
-
-  separator_ = new HSeparator;
-  separator_->SinkReference();
-
-  dash::Style& style = dash::Style::Instance();
-  int space_height = style.GetSpaceBetweenFilterWidgets() - style.GetFilterHighlightPadding();
-
-  space_ = new nux::SpaceLayout(space_height, space_height, space_height, space_height);
-  space_->SinkReference();
-
-  draw_separator.changed.connect([&](bool value)
-  {
-    if (value and !separator_->IsChildOf(layout_))
-    {
-      layout_->AddLayout(space_, 0);
-      layout_->AddView(separator_, 0);
-    }
-    else if (!value and separator_->IsChildOf(layout_))
-    {
-      layout_->RemoveChildObject(space_);
-      layout_->RemoveChildObject(separator_);
-    }
-    QueueDraw();
-  });
-}
-
-FilterExpanderLabel::~FilterExpanderLabel()
-{
-  if (space_)
-    space_->UnReference();
-
-  if (separator_)
-    separator_->UnReference();
 }
 
 void FilterExpanderLabel::SetLabel(std::string const& label)
@@ -153,7 +117,7 @@ void FilterExpanderLabel::SetContents(nux::Layout* contents)
   // Since the contents is initially unowned, we don't want to Adopt it, just assign.
   contents_ = contents;
 
-  layout_->AddLayout(contents_.GetPointer(), 1, nux::MINOR_POSITION_LEFT, nux::MINOR_SIZE_FULL);
+  layout_->AddLayout(contents_.GetPointer(), 1, nux::MINOR_POSITION_START, nux::MINOR_SIZE_FULL);
 
   QueueDraw();
 }
@@ -173,7 +137,7 @@ void FilterExpanderLabel::BuildLayout()
 
   expander_view_ = new ExpanderView(NUX_TRACKER_LOCATION);
   expander_view_->SetLayout(expander_layout_);
-  top_bar_layout_->AddView(expander_view_, 0);
+  top_bar_layout_->AddView(expander_view_, 1);
 
   cairo_label_ = new nux::StaticCairoText(label_.c_str(), NUX_TRACKER_LOCATION);
   cairo_label_->SetFont(FONT_EXPANDER_LABEL);
@@ -197,9 +161,8 @@ void FilterExpanderLabel::BuildLayout()
 
   expander_layout_->AddView(cairo_label_, 1, nux::MINOR_POSITION_CENTER, nux::MINOR_SIZE_FULL);
   expander_layout_->AddView(arrow_layout_, 0, nux::MINOR_POSITION_CENTER);
-  top_bar_layout_->AddSpace(1, 1);
 
-  layout_->AddLayout(top_bar_layout_, 0, nux::MINOR_POSITION_LEFT);
+  layout_->AddLayout(top_bar_layout_, 0, nux::MINOR_POSITION_START);
   layout_->SetVerticalInternalMargin(0);
 
   SetLayout(layout_);
@@ -241,7 +204,7 @@ void FilterExpanderLabel::DoExpandChange(bool change)
 
   if (change and contents_ and !contents_->IsChildOf(layout_))
   {
-    layout_->AddLayout(contents_.GetPointer(), 1, nux::MINOR_POSITION_LEFT, nux::MINOR_SIZE_FULL, 100.0f, nux::LayoutPosition(1));
+    layout_->AddLayout(contents_.GetPointer(), 1, nux::MINOR_POSITION_START, nux::MINOR_SIZE_FULL, 100.0f, nux::LayoutPosition(1));
   }
   else if (!change and contents_ and contents_->IsChildOf(layout_))
   {

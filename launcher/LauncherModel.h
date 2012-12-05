@@ -55,7 +55,7 @@ public:
   void ReorderBefore(AbstractLauncherIcon::Ptr const& icon, AbstractLauncherIcon::Ptr const& other, bool animate);
   void ReorderSmart(AbstractLauncherIcon::Ptr const& icon, AbstractLauncherIcon::Ptr const& other, bool animate);
 
-  AbstractLauncherIcon::Ptr Selection() const;
+  AbstractLauncherIcon::Ptr const& Selection() const;
   int SelectionIndex() const;
   void SetSelection(int selection);
   void SelectNext();
@@ -112,8 +112,7 @@ public:
   {
     std::list<AbstractLauncherIcon::Ptr> result;
 
-    iterator it;
-    for (it = begin(); it != end(); it++)
+    for (iterator it = begin(), e = end(); it != e; ++it)
     {
       T* var = dynamic_cast<T*>((*it).GetPointer());
 

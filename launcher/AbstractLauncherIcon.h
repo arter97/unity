@@ -26,15 +26,15 @@
 #include <NuxCore/Math/MathInc.h>
 
 #include <sigc++/sigc++.h>
-
-#include <X11/Xlib.h>
-
 #include <libdbusmenu-glib/menuitem.h>
 
 #include "DndData.h"
+#include <unity-shared/ApplicationManager.h>
 #include "unity-shared/Introspectable.h"
-#include "LauncherEntryRemote.h"
 #include "unity-shared/IconTextureSource.h"
+#include "unity-shared/WindowManager.h"
+
+#include "LauncherEntryRemote.h"
 
 namespace unity
 {
@@ -105,6 +105,7 @@ public:
     RUNNING,
     URGENT,
     PRESENTED,
+    UNFOLDED,
     STARTING,
     SHIMMER,
     CENTER_SAVED,
@@ -142,7 +143,7 @@ public:
   virtual bool OpenQuicklist(bool select_first_item = false, int monitor = -1) = 0;
   virtual void CloseQuicklist() = 0;
 
-  virtual void        SetCenter(nux::Point3 center, int monitor, nux::Geometry parent_geo) = 0;
+  virtual void SetCenter(nux::Point3 const& center, int monitor, nux::Geometry const& parent_geo) = 0;
 
   virtual nux::Point3 GetCenter(int monitor) = 0;
 
@@ -156,13 +157,11 @@ public:
 
   virtual int SortPriority() = 0;
 
-  virtual std::vector<Window> Windows() = 0;
+  virtual WindowList Windows() = 0;
 
   virtual std::vector<Window> WindowsForMonitor(int monitor) = 0;
 
   virtual std::vector<Window> WindowsOnViewport() = 0;
-
-  virtual std::string NameForWindow(Window window) = 0;
 
   virtual const bool WindowVisibleOnMonitor(int monitor) = 0;
 
@@ -230,8 +229,8 @@ public:
   sigc::signal<void, int>      mouse_enter;
   sigc::signal<void, int>      mouse_leave;
 
-  sigc::signal<void, AbstractLauncherIcon::Ptr> needs_redraw;
-  sigc::signal<void, AbstractLauncherIcon::Ptr> remove;
+  sigc::signal<void, AbstractLauncherIcon::Ptr const&> needs_redraw;
+  sigc::signal<void, AbstractLauncherIcon::Ptr const&> remove;
   sigc::signal<void, nux::ObjectPtr<nux::View>> tooltip_visible;
   sigc::signal<void> visibility_changed;
   sigc::signal<void> position_saved;

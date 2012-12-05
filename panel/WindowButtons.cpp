@@ -359,7 +359,7 @@ WindowButtons::WindowButtons()
   };
 
   but = new WindowButton(panel::WindowButtonType::CLOSE);
-  AddView(but, 0, nux::eCenter, nux::eFix);
+  AddView(but, 0, nux::MINOR_POSITION_CENTER, nux::MINOR_SIZE_FIX);
   AddChild(but);
   but->click.connect(sigc::mem_fun(this, &WindowButtons::OnCloseClicked));
   but->mouse_enter.connect(lambda_enter);
@@ -367,7 +367,7 @@ WindowButtons::WindowButtons()
   but->mouse_move.connect(lambda_moved);
 
   but = new WindowButton(panel::WindowButtonType::MINIMIZE);
-  AddView(but, 0, nux::eCenter, nux::eFix);
+  AddView(but, 0, nux::MINOR_POSITION_CENTER, nux::MINOR_SIZE_FIX);
   AddChild(but);
   but->click.connect(sigc::mem_fun(this, &WindowButtons::OnMinimizeClicked));
   but->mouse_enter.connect(lambda_enter);
@@ -375,7 +375,7 @@ WindowButtons::WindowButtons()
   but->mouse_move.connect(lambda_moved);
 
   but = new WindowButton(panel::WindowButtonType::UNMAXIMIZE);
-  AddView(but, 0, nux::eCenter, nux::eFix);
+  AddView(but, 0, nux::MINOR_POSITION_CENTER, nux::MINOR_SIZE_FIX);
   AddChild(but);
   but->click.connect(sigc::mem_fun(this, &WindowButtons::OnRestoreClicked));
   but->mouse_enter.connect(lambda_enter);
@@ -383,7 +383,7 @@ WindowButtons::WindowButtons()
   but->mouse_move.connect(lambda_moved);
 
   but = new WindowButton(panel::WindowButtonType::MAXIMIZE);
-  AddView(but, 0, nux::eCenter, nux::eFix);
+  AddView(but, 0, nux::MINOR_POSITION_CENTER, nux::MINOR_SIZE_FIX);
   AddChild(but);
   but->click.connect(sigc::mem_fun(this, &WindowButtons::OnMaximizeClicked));
   but->mouse_enter.connect(lambda_enter);
@@ -391,7 +391,7 @@ WindowButtons::WindowButtons()
   but->mouse_move.connect(lambda_moved);
   but->SetVisible(false);
 
-  SetContentDistribution(nux::eStackLeft);
+  SetContentDistribution(nux::MAJOR_POSITION_START);
 
   ubus_manager_.RegisterInterest(UBUS_OVERLAY_SHOWN, sigc::mem_fun(this, &WindowButtons::OnOverlayShown));
   ubus_manager_.RegisterInterest(UBUS_OVERLAY_HIDDEN, sigc::mem_fun(this, &WindowButtons::OnOverlayHidden));
@@ -442,7 +442,7 @@ void WindowButtons::OnCloseClicked(nux::Button *button)
   }
   else
   {
-    WindowManager::Default()->Close(window_xid_);
+    WindowManager::Default().Close(window_xid_);
   }
 
   close_clicked.emit();
@@ -456,7 +456,7 @@ void WindowButtons::OnMinimizeClicked(nux::Button *button)
     return;
 
   if (!win_button->IsOverlayOpen())
-    WindowManager::Default()->Minimize(window_xid_);
+    WindowManager::Default().Minimize(window_xid_);
 
   minimize_clicked.emit();
 }
@@ -474,12 +474,12 @@ void WindowButtons::OnRestoreClicked(nux::Button *button)
   }
   else
   {
-    WindowManager* wm = WindowManager::Default();
+    WindowManager& wm = WindowManager::Default();
     Window to_restore = window_xid_;
 
-    wm->Raise(to_restore);
-    wm->Activate(to_restore);
-    wm->Restore(to_restore);
+    wm.Raise(to_restore);
+    wm.Activate(to_restore);
+    wm.Restore(to_restore);
   }
 
   restore_clicked.emit();
@@ -597,6 +597,7 @@ void WindowButtons::OnOverlayHidden(GVariant* data)
 
   active_overlay_ = "";
 
+  WindowManager& wm = WindowManager::Default();
   for (auto area : GetChildren())
   {
     auto button = dynamic_cast<WindowButton*>(area);
@@ -607,13 +608,13 @@ void WindowButtons::OnOverlayHidden(GVariant* data)
       {
         if (button->GetType() == panel::WindowButtonType::CLOSE)
         {
-          bool closable = WindowManager::Default()->IsWindowClosable(window_xid_);
+          bool closable = wm.IsWindowClosable(window_xid_);
           button->SetEnabled(closable);
         }
 
         if (button->GetType() == panel::WindowButtonType::MINIMIZE)
         {
-          bool minimizable = WindowManager::Default()->IsWindowMinimizable(window_xid_);
+          bool minimizable = wm.IsWindowMinimizable(window_xid_);
           button->SetEnabled(minimizable);
         }
       }
@@ -744,6 +745,7 @@ void WindowButtons::SetControlledWindow(Window xid)
 
     if (window_xid_ && active_overlay_.empty())
     {
+      WindowManager& wm = WindowManager::Default();
       for (auto area : GetChildren())
       {
         auto button = dynamic_cast<WindowButton*>(area);
@@ -753,13 +755,13 @@ void WindowButtons::SetControlledWindow(Window xid)
 
         if (button->GetType() == panel::WindowButtonType::CLOSE)
         {
-          bool closable = WindowManager::Default()->IsWindowClosable(xid);
+          bool closable = wm.IsWindowClosable(xid);
           button->SetEnabled(closable);
         }
 
         if (button->GetType() == panel::WindowButtonType::MINIMIZE)
         {
-          bool minimizable = WindowManager::Default()->IsWindowMinimizable(xid);
+          bool minimizable = wm.IsWindowMinimizable(xid);
           button->SetEnabled(minimizable);
         }
       }

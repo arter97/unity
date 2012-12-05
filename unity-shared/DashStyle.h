@@ -106,7 +106,7 @@ public:
 
   virtual nux::AbstractPaintLayer* FocusOverlay(int width, int height);
 
-  virtual bool ButtonFocusOverlay(cairo_t* cr);
+  virtual bool ButtonFocusOverlay(cairo_t* cr, float alpha = 0.50f);
 
   virtual bool MultiRangeSegment(cairo_t*    cr,
                                  nux::ButtonVisualState  state,
@@ -203,9 +203,7 @@ public:
   nux::BaseTexture* GetStarDeselectedIcon();
   nux::BaseTexture* GetStarSelectedIcon();
   nux::BaseTexture* GetStarHighlightIcon();
- 
-  nux::BaseTexture* GetInformationTexture();
-
+  
   nux::BaseTexture* GetRefineTextureCorner();
   nux::BaseTexture* GetRefineTextureDash();
   nux::BaseTexture* GetRefineNoRefineTextureDash();

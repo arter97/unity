@@ -35,16 +35,18 @@
 #include <glib.h>
 
 #include "unity-shared/PanelStyle.h"
-#include "PanelIndicatorsView.h"
+#include "unity-shared/WindowManager.h"
+#include "unity-shared/UBusMessages.h"
 #include <UnityCore/Variant.h>
 
-#include "unity-shared/UBusMessages.h"
+#include "PanelIndicatorsView.h"
 
 #include "PanelView.h"
 
+DECLARE_LOGGER(logger, "unity.panel.view");
+
 namespace
 {
-nux::logging::Logger logger("unity.panel.view");
 const int refine_gradient_midpoint = 959;
 }
 
@@ -89,7 +91,7 @@ PanelView::PanelView(NUX_FILE_LINE_DECL)
   _bg_darken_layer.reset(new nux::ColorLayer(darken_colour, false, rop));
 
   _layout = new nux::HLayout("", NUX_TRACKER_LOCATION);
-  _layout->SetContentDistribution(nux::eStackLeft);
+  _layout->SetContentDistribution(nux::MAJOR_POSITION_START);
 
   _menu_view = new PanelMenuView();
   AddPanelView(_menu_view, 1);
@@ -97,7 +99,7 @@ PanelView::PanelView(NUX_FILE_LINE_DECL)
   SetCompositionLayout(_layout);
 
   _tray = new PanelTray();
-  _layout->AddView(_tray, 0, nux::eCenter, nux::eFull);
+  _layout->AddView(_tray, 0, nux::MINOR_POSITION_CENTER, nux::MINOR_SIZE_FULL);
   AddChild(_tray);
 
   _indicators = new PanelIndicatorsView();
@@ -312,7 +314,7 @@ void PanelView::OnOverlayShown(GVariant* data)
 void PanelView::AddPanelView(PanelIndicatorsView* child,
                              unsigned int stretchFactor)
 {
-  _layout->AddView(child, stretchFactor, nux::eCenter, nux::eFull);
+  _layout->AddView(child, stretchFactor, nux::MINOR_POSITION_CENTER, nux::MINOR_SIZE_FULL);
   auto conn = child->on_indicator_updated.connect(sigc::mem_fun(this, &PanelView::OnIndicatorViewUpdated));
   _on_indicator_updated_connections.push_back(conn);
   AddChild(child);
@@ -580,11 +582,11 @@ PanelView::UpdateBackground()
   }
   else
   {
-    WindowManager* wm = WindowManager::Default();
+    WindowManager& wm = WindowManager::Default();
     double opacity = _opacity;
 
-    if (_opacity_maximized_toggle && (wm->IsExpoActive() ||
-        (maximized_win != 0 && !wm->IsWindowObscured(maximized_win))))
+    if (_opacity_maximized_toggle && (wm.IsExpoActive() ||
+        (maximized_win != 0 && !wm.IsWindowObscured(maximized_win))))
     {
       opacity = 1.0f;
     }
@@ -702,7 +704,7 @@ void PanelView::OnEntryActivateRequest(std::string const& entry_id)
 
 bool PanelView::TrackMenuPointer()
 {
-  auto mouse = nux::GetGraphicsDisplay()->GetMouseScreenCoord();
+  nux::Point const& mouse = nux::GetGraphicsDisplay()->GetMouseScreenCoord();
   if (_tracked_pointer_pos != mouse)
   {
     OnMenuPointerMoved(mouse.x, mouse.y);
@@ -740,9 +742,8 @@ void PanelView::OnEntryActivated(std::string const& entry_id, nux::Rect const& g
   _ubus_manager.SendMessage(UBUS_PLACE_VIEW_CLOSE_REQUEST);
 }
 
-void PanelView::OnEntryShowMenu(std::string const& entry_id, unsigned int xid,
-                                int x, int y, unsigned int button,
-                                unsigned int timestamp)
+void PanelView::OnEntryShowMenu(std::string const& entry_id, unsigned xid,
+                                int x, int y, unsigned button)
 {
   Display* d = nux::GetGraphicsDisplay()->GetX11Display();
   XUngrabPointer(d, CurrentTime);
@@ -812,21 +813,21 @@ void PanelView::SetOpacityMaximizedToggle(bool enabled)
   {
     if (enabled)
     {
-      auto win_manager = WindowManager::Default();
+      WindowManager& win_manager = WindowManager::Default();
       auto update_bg_lambda = [&](guint32) { ForceUpdateBackground(); };
       auto conn = &_maximized_opacity_toggle_connections;
 
-      conn->push_back(win_manager->window_minimized.connect(update_bg_lambda));
-      conn->push_back(win_manager->window_unminimized.connect(update_bg_lambda));
-      conn->push_back(win_manager->window_maximized.connect(update_bg_lambda));
-      conn->push_back(win_manager->window_restored.connect(update_bg_lambda));
-      conn->push_back(win_manager->window_mapped.connect(update_bg_lambda));
-      conn->push_back(win_manager->window_unmapped.connect(update_bg_lambda));
-      conn->push_back(win_manager->initiate_expo.connect(
+      conn->push_back(win_manager.window_minimized.connect(update_bg_lambda));
+      conn->push_back(win_manager.window_unminimized.connect(update_bg_lambda));
+      conn->push_back(win_manager.window_maximized.connect(update_bg_lambda));
+      conn->push_back(win_manager.window_restored.connect(update_bg_lambda));
+      conn->push_back(win_manager.window_mapped.connect(update_bg_lambda));
+      conn->push_back(win_manager.window_unmapped.connect(update_bg_lambda));
+      conn->push_back(win_manager.initiate_expo.connect(
         sigc::mem_fun(this, &PanelView::ForceUpdateBackground)));
-      conn->push_back(win_manager->terminate_expo.connect(
+      conn->push_back(win_manager.terminate_expo.connect(
         sigc::mem_fun(this, &PanelView::ForceUpdateBackground)));
-      conn->push_back(win_manager->compiz_screen_viewport_switch_ended.connect(
+      conn->push_back(win_manager.screen_viewport_switch_ended.connect(
         sigc::mem_fun(this, &PanelView::ForceUpdateBackground)));
     }
     else

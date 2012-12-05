@@ -23,7 +23,7 @@
 
 #include <string>
 #include <UnityCore/GLibDBusProxy.h>
-#include "BamfLauncherIcon.h"
+#include "ApplicationLauncherIcon.h"
 #include "LauncherDragWindow.h"
 
 namespace unity
@@ -32,13 +32,13 @@ namespace launcher
 {
 class Launcher;
 
-class SoftwareCenterLauncherIcon : public BamfLauncherIcon
+class SoftwareCenterLauncherIcon : public ApplicationLauncherIcon
 {
-  NUX_DECLARE_OBJECT_TYPE(SoftwareCenterLauncherIcon, BamfLauncherIcon);
+  NUX_DECLARE_OBJECT_TYPE(SoftwareCenterLauncherIcon, ApplicationLauncherIcon);
 public:
   typedef nux::ObjectPtr<SoftwareCenterLauncherIcon> Ptr;
 
-  SoftwareCenterLauncherIcon(BamfApplication* app,
+  SoftwareCenterLauncherIcon(ApplicationPtr const& app,
                              std::string const& aptdaemon_trans_id,
                              std::string const& icon_path);
 
@@ -63,6 +63,7 @@ private:
   bool needs_urgent_;
 
   std::string aptdaemon_trans_id_;
+  std::string app_title_;
 };
 
 }

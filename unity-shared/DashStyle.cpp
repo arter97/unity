@@ -53,10 +53,9 @@ namespace unity
 {
 namespace dash
 {
+DECLARE_LOGGER(logger, "unity.dash.style");
 namespace
 {
-nux::logging::Logger logger("unity.dash");
-
 Style* style_instance = nullptr;
 
 const int STATES = 5;
@@ -221,7 +220,6 @@ public:
   LazyLoadTexture search_close_texture_;
   LazyLoadTexture search_spin_texture_;
 
-  LazyLoadTexture information_texture_;
 
   LazyLoadTexture refine_gradient_corner_;
   LazyLoadTexture refine_gradient_dash_;
@@ -269,7 +267,6 @@ Style::Impl::Impl(Style* owner)
   , search_circle_texture_("/search_circle.svg", 32)
   , search_close_texture_("/search_close.svg", 32)
   , search_spin_texture_("/search_spin.svg", 32)
-  , information_texture_("/information_icon.svg")
   , refine_gradient_corner_("/refine_gradient_corner.png")
   , refine_gradient_dash_("/refine_gradient_dash.png")
   , refine_gradient_no_refine_dash_("/refine_gradient_dash_no_refine.png")
@@ -1762,7 +1759,7 @@ bool Style::SquareButton(cairo_t* cr, nux::ButtonVisualState state,
   return true;
 }
 
-bool Style::ButtonFocusOverlay(cairo_t* cr)
+bool Style::ButtonFocusOverlay(cairo_t* cr, float alpha)
 {
   // sanity checks
   if (cairo_status(cr) != CAIRO_STATUS_SUCCESS)
@@ -1775,7 +1772,7 @@ bool Style::ButtonFocusOverlay(cairo_t* cr)
   double h = cairo_image_surface_get_height(cairo_get_target(cr));
 
   nux::Color color(nux::color::White);
-  color.alpha = 0.50f;
+  color.alpha = alpha;
   cairo_set_line_width(cr, pimpl->button_label_border_size_[nux::VISUAL_STATE_NORMAL]);
 
   RoundedRect(cr,
@@ -2211,11 +2208,6 @@ nux::BaseTexture* Style::GetSearchCloseIcon()
 nux::BaseTexture* Style::GetSearchSpinIcon()
 {
   return pimpl->search_spin_texture_.texture();
-}
-
-nux::BaseTexture* Style::GetInformationTexture()
-{
-  return pimpl->information_texture_.texture(); 
 }
 
 nux::BaseTexture* Style::GetRefineTextureCorner()

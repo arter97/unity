@@ -9,12 +9,10 @@
 from __future__ import absolute_import
 
 from autopilot.matchers import Eventually
-import logging
-from time import sleep
 from testtools.matchers import Equals, NotEquals
+from time import sleep
 
 from unity.tests import UnityTestCase
-from unity.emulators.screen import Screen
 
 
 class SpreadTests(UnityTestCase):
@@ -27,7 +25,7 @@ class SpreadTests(UnityTestCase):
 
         for i in range(num_windows):
             win = self.start_app_window(app_name)
-            if len(windows):
+            if windows:
                 self.assertThat(win.application, Equals(windows[-1].application))
 
             windows.append(win)
@@ -40,14 +38,12 @@ class SpreadTests(UnityTestCase):
         """Initiate the Spread for all windows"""
         self.addCleanup(self.keybinding, "spread/cancel")
         self.keybinding("spread/start")
-        sleep(1)
         self.assertThat(self.window_manager.scale_active, Eventually(Equals(True)))
-
 
     def initiate_spread_for_application(self, desktop_id):
         """Initiate the Spread for windows of the given app"""
         icon = self.launcher.model.get_icon(desktop_id=desktop_id)
-        self.assertThat(lambda: icon, Eventually(NotEquals(None)))
+        self.assertThat(icon, NotEquals(None))
         launcher = self.launcher.get_launcher_for_monitor(self.screen_geo.get_primary_monitor())
 
         self.addCleanup(self.keybinding, "spread/cancel")
@@ -64,9 +60,11 @@ class SpreadTests(UnityTestCase):
         refresh_fn = lambda: xid in [w.x_id for w in self.bamf.get_open_windows()]
         self.assertThat(refresh_fn, Eventually(Equals(False)))
 
-
     def test_scale_application_windows(self):
-        """Test if all the windows of an application are scaled when application spread is initiated"""
+        """All the windows of an application must be scaled when application
+        spread is initiated
+
+        """
         [win1, win2] = self.start_test_application_windows("Calculator")
         self.initiate_spread_for_application(win1.application.desktop_file)
 
@@ -90,6 +88,22 @@ class SpreadTests(UnityTestCase):
         self.mouse.click()
 
         self.assertThat(lambda: not_focused.is_focused, Eventually(Equals(True)))
+
+    def test_scaled_window_closes_on_middle_click(self):
+        """Test that a window is closed when middle-clicked in spread"""
+        win = self.start_test_application_windows("Calculator", 2)[0]
+        self.initiate_spread_for_application(win.application.desktop_file)
+
+        target_xid = win.x_id
+        [target_win] = [w for w in self.screen.scaled_windows if w.xid == target_xid]
+
+        (x, y, w, h) = target_win.geometry
+        self.mouse.move(x + w / 2, y + h / 2)
+        sleep(.5)
+        self.mouse.click(button=2)
+
+        self.assertWindowIsNotScaled(target_xid)
+        self.assertWindowIsClosed(target_xid)
 
     def test_scaled_window_closes_on_close_button_click(self):
         """Test that a window is closed when its close button is clicked in spread"""

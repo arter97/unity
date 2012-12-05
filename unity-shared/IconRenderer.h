@@ -46,18 +46,19 @@ public:
   void SetTargetSize(int tile_size, int image_size, int spacing);
 
   static void DestroyTextures();
+  static void DestroyShortcutTextures();
 
 protected:
-  nux::BaseTexture* RenderCharToTexture(const char label, int width, int height);
+  nux::BaseTexture* RenderCharToTexture(char label, int width, int height, nux::Color const& bg_color);
 
   void RenderElement(nux::GraphicsEngine& GfxContext,
                      RenderArg const& arg,
-                     nux::ObjectPtr<nux::IOpenGLBaseTexture> icon,
-                     nux::Color bkg_color,
-                     nux::Color colorify,
+                     nux::ObjectPtr<nux::IOpenGLBaseTexture> const& icon,
+                     nux::Color const& bkg_color,
+                     nux::Color const& colorify,
                      float alpha,
                      bool force_filter,
-                     std::vector<nux::Vector4>& xform_coords);
+                     std::vector<nux::Vector4> const& xform_coords);
 
   void RenderIndicators(nux::GraphicsEngine& GfxContext,
                         RenderArg const& arg,
@@ -67,14 +68,14 @@ protected:
                         nux::Geometry const& geo);
 
   void RenderProgressToTexture(nux::GraphicsEngine& GfxContext,
-                               nux::ObjectPtr<nux::IOpenGLBaseTexture> texture,
+                               nux::ObjectPtr<nux::IOpenGLBaseTexture> const& texture,
                                float progress_fill,
                                float bias);
 
-  void UpdateIconTransform(ui::IconTextureSource* icon, nux::Matrix4 ViewProjectionMatrix, nux::Geometry const& geo,
+  void UpdateIconTransform(ui::IconTextureSource* icon, nux::Matrix4 const& ViewProjectionMatrix, nux::Geometry const& geo,
                            float x, float y, float w, float h, float z, ui::IconTextureSource::TransformIndex index);
 
-  void UpdateIconSectionTransform(ui::IconTextureSource* icon, nux::Matrix4 ViewProjectionMatrix, nux::Geometry const& geo,
+  void UpdateIconSectionTransform(ui::IconTextureSource* icon, nux::Matrix4 const& ViewProjectionMatrix, nux::Geometry const& geo,
                                   float x, float y, float w, float h, float z, float xx, float yy, float ww, float hh, ui::IconTextureSource::TransformIndex index);
 
   void GetInverseScreenPerspectiveMatrix(nux::Matrix4& ViewMatrix, nux::Matrix4& PerspectiveMatrix,
@@ -83,10 +84,6 @@ protected:
                                          float NearClipPlane,
                                          float FarClipPlane,
                                          float Fovy);
-
-  void SetOffscreenRenderTarget(nux::ObjectPtr<nux::IOpenGLBaseTexture> texture);
-
-  void RestoreSystemRenderTarget();
 
 private:
   int icon_size;

@@ -5,9 +5,6 @@ find_package (PkgConfig)
 set (CFLAGS
      ${CACHED_UNITY_DEPS_CFLAGS}
      ${CACHED_UNITY_DEPS_CFLAGS_OTHER}
-     ${MAINTAINER_CFLAGS}
-     "-DGETTEXT_PACKAGE=\"unity\""
-     "-I${CMAKE_CURRENT_BINARY_DIR}"
      )
 
 if (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64" OR ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "armv7l")
@@ -21,21 +18,23 @@ set (LIBS ${CACHED_UNITY_DEPS_LIBRARIES} ${UNITY_STANDALONE_LADD})
 set (LIB_PATHS ${CACHED_UNITY_DEPS_LIBRARY_DIRS})
 link_directories (${CMAKE_BINARY_DIR}/UnityCore ${LIB_PATHS})
 
-include_directories (. .. ../services ../UnityCore ${UNITY_SRC} ${CMAKE_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+include_directories (.. ../services ../UnityCore ${UNITY_SRC} ${CMAKE_BINARY_DIR})
 
 #
 # Headers & Sources
 #
 set (UNITY_SHARED_SOURCES
      AbstractSeparator.cpp
+     ApplicationManager.cpp
      Animator.cpp
      BGHash.cpp
      CoverArt.cpp
      BackgroundEffectHelper.cpp
      DashStyle.cpp
+     DebugDBusInterface.cpp
      DefaultThumbnailProvider.cpp
      FontSettings.cpp
-     KeyboardUtil.cpp
+     GraphicsUtils.cpp
      IMTextEntry.cpp
      IconLoader.cpp
      IconRenderer.cpp
@@ -44,28 +43,46 @@ set (UNITY_SHARED_SOURCES
      Introspectable.cpp
      IntrospectableWrappers.cpp
      JSONParser.cpp
+     LayoutSystem.cpp
      LineSeparator.cpp
      OverlayRenderer.cpp
      PanelStyle.cpp
      PlacesVScrollBar.cpp
+     PlacesOverlayVScrollBar.cpp
      PreviewStyle.cpp
      RatingsButton.cpp
      SearchBar.cpp
      SearchBarSpinner.cpp
      StaticCairoText.cpp
      TextureCache.cpp
+     TextInput.cpp
      TextureThumbnailProvider.cpp
      ThumbnailGenerator.cpp
      Timer.cpp
+     UBusServer.cpp
      UBusWrapper.cpp
      UScreen.cpp
      UnitySettings.cpp
      UnityWindowStyle.cpp
      UnityWindowView.cpp
      UserThumbnailProvider.cpp
+     VScrollBarOverlayWindow.cpp
      WindowManager.cpp
-     ubus-server.cpp
+     XPathQueryPart.cpp
 )
+
+if(ENABLE_X_SUPPORT)
+  set (UNITY_SHARED_SOURCES
+    XKeyboardUtil.cpp
+    XWindowManager.cpp
+    ${UNITY_SHARED_SOURCES}
+    )
+else()
+  set (UNITY_SHARED_SOURCES
+    FakeKeyboardUtil.cpp
+    ${UNITY_SHARED_SOURCES}
+    )
+endif()
 
 add_library (unity-shared STATIC ${UNITY_SHARED_SOURCES})
 target_link_libraries (unity-shared ${LIBS})
@@ -75,21 +92,35 @@ add_dependencies (unity-shared unity-core-${UNITY_API_VERSION})
 # We also need to build compiz specific parts and standalone variants of those parts
 #
 
-# compiz
-set (UNITY_SHARED_COMPIZ_SOURCES
-     PluginAdapterCompiz.cpp
-     )
-add_library (unity-shared-compiz STATIC ${UNITY_SHARED_COMPIZ_SOURCES})
-target_link_libraries (unity-shared-compiz ${LIBS})
+if (ENABLE_X_SUPPORT)
+  # compiz
+  set (UNITY_SHARED_COMPIZ_SOURCES
+    PluginAdapter.cpp
+    )
+  add_library (unity-shared-compiz STATIC ${UNITY_SHARED_COMPIZ_SOURCES})
+  target_link_libraries (unity-shared-compiz ${LIBS})
 
-add_dependencies (unity-shared-compiz unity-shared)
+  add_dependencies (unity-shared-compiz unity-shared)
+
+  # bamf application manager
+  set (UNITY_SHARED_BAMF_SOURCES
+    BamfApplicationManager.cpp
+    BamfApplicationManagerFactory.cpp
+    )
+  add_library (unity-shared-bamf STATIC ${UNITY_SHARED_BAMF_SOURCES})
+  target_link_libraries (unity-shared-bamf ${LIBS})
+  add_dependencies (unity-shared-bamf unity-shared)
+endif()
 
 # standalone
 set (UNITY_SHARED_STANDALONE_SOURCES
-     PluginAdapterStandalone.cpp
+     StandaloneWindowManager.cpp
      )
 add_library (unity-shared-standalone STATIC ${UNITY_SHARED_STANDALONE_SOURCES})
 target_link_libraries (unity-shared-standalone ${LIBS})
 add_dependencies (unity-shared-standalone unity-shared)
 
+add_executable (app-manager StandaloneAppManager.cpp)
+add_dependencies (app-manager  unity-shared unity-shared-bamf unity-shared-standalone)
+target_link_libraries (app-manager  unity-shared unity-shared-bamf  unity-shared-standalone)
 

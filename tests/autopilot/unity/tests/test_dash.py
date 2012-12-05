@@ -15,11 +15,12 @@ from time import sleep
 
 from unity.tests import UnityTestCase
 
+import gettext
 
 class DashTestCase(UnityTestCase):
     def setUp(self):
         super(DashTestCase, self).setUp()
-        self.set_unity_log_level("unity.shell", "DEBUG")
+        self.set_unity_log_level("unity.shell.compiz", "DEBUG")
         self.set_unity_log_level("unity.launcher", "DEBUG")
         self.dash.ensure_hidden()
         # On shutdown, ensure hidden too.  Also add a delay.  Cleanup is LIFO.
@@ -75,38 +76,6 @@ class DashRevealTests(DashTestCase):
         self.keyboard.press_and_release("Alt+F4")
         self.assertThat(self.dash.visible, Eventually(Equals(False)))
 
-    def test_dash_closes_on_spread(self):
-        """This test shows that when the spread is initiated, the dash closes."""
-        self.dash.ensure_visible()
-        self.addCleanup(self.keybinding, "spread/cancel")
-        self.keybinding("spread/start")
-        self.assertThat(self.window_manager.scale_active, Eventually(Equals(True)))
-        self.assertThat(self.dash.visible, Eventually(Equals(False)))
-
-    def test_dash_opens_when_in_spread(self):
-        """This test shows the dash opens when in spread mode."""
-        self.keybinding("spread/start")
-        self.assertThat(self.window_manager.scale_active, Eventually(Equals(True)))
-
-        self.dash.ensure_visible()
-        self.assertThat(self.dash.visible, Eventually(Equals(True)))
-
-    def test_command_lens_opens_when_in_spread(self):
-        """This test shows the command lens opens when in spread mode."""
-        self.keybinding("spread/start")
-        self.assertThat(self.window_manager.scale_active, Eventually(Equals(True)))
-
-        self.dash.reveal_command_lens()
-        self.assertThat(self.dash.active_lens, Eventually(Equals('commands.lens')))
-
-    def test_lens_opens_when_in_spread(self):
-        """This test shows that any lens opens when in spread mode."""
-        self.keybinding("spread/start")
-        self.assertThat(self.window_manager.scale_active, Eventually(Equals(True)))
-
-        self.dash.reveal_application_lens()
-        self.assertThat(self.dash.active_lens, Eventually(Equals('applications.lens')))
-
     def test_closes_mouse_down_outside(self):
         """Test that a mouse down outside of the dash closes the dash."""
 
@@ -115,10 +84,10 @@ class DashRevealTests(DashTestCase):
 
         (x,y,w,h) = self.dash.geometry
         (screen_x,screen_y,screen_w,screen_h) = self.screen_geo.get_monitor_geometry(current_monitor)
-        
+
         self.mouse.move(x + w + (screen_w-((screen_x-x)+w))/2, y + h + (screen_h-((screen_y-y)+h))/2)
         self.mouse.click()
-        
+
         self.assertThat(self.dash.visible, Eventually(Equals(False)))
 
     def test_closes_then_focuses_window_on_mouse_down(self):
@@ -139,6 +108,56 @@ class DashRevealTests(DashTestCase):
         self.mouse.click()
 
         self.assertProperty(char_win, is_active=True)
+
+class DashRevealWithSpreadTests(DashTestCase):
+    """Test the interaction of the Dash with the Spead/Scale
+
+    The Spread (or Scale) in Quantal is not activated if there is no active
+    apps. We use a place holder app so that it is activated as we require.
+
+    """
+
+    def start_placeholder_app(self):
+        window_spec = {
+            "Title": "Placeholder application",
+        }
+        self.launch_test_window(window_spec)
+
+    def test_dash_closes_on_spread(self):
+        """This test shows that when the spread is initiated, the dash closes."""
+        self.start_placeholder_app()
+        self.dash.ensure_visible()
+        self.addCleanup(self.keybinding, "spread/cancel")
+        self.keybinding("spread/start")
+        self.assertThat(self.window_manager.scale_active, Eventually(Equals(True)))
+        self.assertThat(self.dash.visible, Eventually(Equals(False)))
+
+    def test_dash_opens_when_in_spread(self):
+        """This test shows the dash opens when in spread mode."""
+        self.start_placeholder_app()
+        self.keybinding("spread/start")
+        self.assertThat(self.window_manager.scale_active, Eventually(Equals(True)))
+
+        self.dash.ensure_visible()
+        self.assertThat(self.dash.visible, Eventually(Equals(True)))
+
+    def test_command_lens_opens_when_in_spread(self):
+        """This test shows the command lens opens when in spread mode."""
+        self.start_placeholder_app()
+        self.keybinding("spread/start")
+        self.assertThat(self.window_manager.scale_active, Eventually(Equals(True)))
+
+        self.dash.reveal_command_lens()
+        self.assertThat(self.dash.active_lens, Eventually(Equals('commands.lens')))
+
+    def test_lens_opens_when_in_spread(self):
+        """This test shows that any lens opens when in spread mode."""
+        self.start_placeholder_app()
+        self.keybinding("spread/start")
+        self.assertThat(self.window_manager.scale_active, Eventually(Equals(True)))
+
+        self.dash.reveal_application_lens()
+        self.assertThat(self.dash.active_lens, Eventually(Equals('applications.lens')))
 
 
 class DashSearchInputTests(DashTestCase):
@@ -175,14 +194,14 @@ class DashMultiKeyTests(DashSearchInputTests):
         self.dash.reveal_application_lens()
         self.keyboard.press_and_release('Multi_key')
         self.keyboard.type("^o")
-        self.assertSearchText("ô")
+        self.assertSearchText(u'\xf4')
 
     def test_multi_key_copyright(self):
         """Pressing the sequences 'Multi_key' + 'c' + 'o' must produce '©'."""
         self.dash.reveal_application_lens()
         self.keyboard.press_and_release('Multi_key')
         self.keyboard.type("oc")
-        self.assertSearchText("©")
+        self.assertSearchText(u'\xa9')
 
     def test_multi_key_delete(self):
         """Pressing 'Multi_key' must not get stuck looking for a sequence."""
@@ -343,24 +362,27 @@ class DashKeyNavTests(DashTestCase):
         lens = self.dash.get_current_lens()
 
         filter_bar = lens.get_filterbar()
+        # Need to ensure the filter expander has focus, so if it's already
+        # expanded, we collapse it first:
+        filter_bar.ensure_collapsed()
         filter_bar.ensure_expanded()
 
         # Tab to fist filter expander
         self.keyboard.press_and_release('Tab')
-        self.assertThat(lambda: filter_bar.get_focused_filter(), Eventually(NotEquals(None)))
+        self.assertThat(filter_bar.get_focused_filter, Eventually(NotEquals(None)))
         old_focused_filter = filter_bar.get_focused_filter()
         old_focused_filter.ensure_expanded()
 
         # Tab to the next filter expander
         self.keyboard.press_and_release('Tab')
-        self.assertThat(lambda: filter_bar.get_focused_filter(), Eventually(NotEquals(None)))
+        self.assertThat(filter_bar.get_focused_filter, Eventually(NotEquals(None)))
         new_focused_filter = filter_bar.get_focused_filter()
         self.assertNotEqual(old_focused_filter, new_focused_filter)
         new_focused_filter.ensure_expanded()
 
         # Move the focus up.
         self.keyboard.press_and_release("Up")
-        self.assertThat(lambda: filter_bar.get_focused_filter(), Eventually(Equals(None)))
+        self.assertThat(filter_bar.get_focused_filter, Eventually(Equals(None)))
         self.assertThat(old_focused_filter.content_has_focus, Eventually(Equals(True)))
 
 
@@ -509,11 +531,12 @@ class DashLensResultsTests(DashTestCase):
 
     def test_results_update_on_filter_changed(self):
         """This test makes sure the results change when filters change."""
+        gettext.install("unity-lens-applications")
         self.dash.reveal_application_lens()
         lens = self.dash.get_current_lens()
         self.keyboard.type(" ")
         self.assertThat(self.dash.search_string, Eventually(Equals(" ")))
-        results_category = lens.get_category_by_name("Installed")
+        results_category = lens.get_category_by_name(_("Installed"))
         old_results = results_category.get_results()
 
         # FIXME: This should be a method on the dash emulator perhaps, or
@@ -548,7 +571,7 @@ class DashLensResultsTests(DashTestCase):
         activate_filter(True)
         self.addCleanup(activate_filter)
 
-        results_category = lens.get_category_by_name("Installed")
+        results_category = lens.get_category_by_name(_("Installed"))
         results = results_category.get_results()
         self.assertIsNot(results, old_results)
 
@@ -641,10 +664,11 @@ class CategoryHeaderTests(DashTestCase):
         """Clicking into a category highlight must expand/collapse
         the view.
         """
-        lens = self.dash.reveal_file_lens()
+        gettext.install("unity-lens-applications", unicode=True)
+        lens = self.dash.reveal_application_lens()
         self.addCleanup(self.dash.ensure_hidden)
 
-        category = lens.get_category_by_name("Folders")
+        category = lens.get_category_by_name(_("Installed"))
         is_expanded = category.is_expanded
 
         self.mouse.move(self.dash.view.x + self.dash.view.width / 2,
@@ -660,18 +684,17 @@ class CategoryHeaderTests(DashTestCase):
 class PreviewInvocationTests(DashTestCase):
     """Tests that dash previews can be opened and closed in different
     lenses.
-
     """
-
     def test_app_lens_preview_open_close(self):
         """Right-clicking on an application lens result must show
         its preview.
 
         """
+        gettext.install("unity-lens-applications", unicode=True)
         lens = self.dash.reveal_application_lens()
         self.addCleanup(self.dash.ensure_hidden)
 
-        category = lens.get_category_by_name("Installed")
+        category = lens.get_category_by_name(_("More suggestions"))
         results = category.get_results()
         result = results[0]
         # result.preview handles finding xy co-ords and right mouse-click
@@ -685,12 +708,12 @@ class PreviewInvocationTests(DashTestCase):
     def test_files_lens_preview_open_close(self):
         """Right-clicking on a files lens result must show its
         preview.
-
         """
+        gettext.install("unity-lens-files", unicode=True)
         lens = self.dash.reveal_file_lens()
         self.addCleanup(self.dash.ensure_hidden)
 
-        category = lens.get_category_by_name("Folders")
+        category = lens.get_category_by_name(_("Folders"))
         results = category.get_results()
         result = results[0]
         # result.preview handles finding xy co-ords and right mouse-click
@@ -704,7 +727,6 @@ class PreviewInvocationTests(DashTestCase):
     def test_music_lens_preview_open_close(self):
         """Right-clicking on a music lens result must show its
         preview.
-
         """
         lens = self.dash.reveal_music_lens()
         self.addCleanup(self.dash.ensure_hidden)
@@ -729,10 +751,11 @@ class PreviewInvocationTests(DashTestCase):
     def test_video_lens_preview_open_close(self):
         """Right-clicking on a video lens result must show its
         preview.
-
         """
+        gettext.install("unity-lens-video", unicode=True)
+
         def get_category(lens):
-            category = lens.get_category_by_name("Recently Viewed")
+            category = lens.get_category_by_name(_("Recently Viewed"))
             # If there was no video played on this system this category is expected
             # to be empty, if its empty we check if the 'Online' category have any
             # contents, if not then we skip the test.
@@ -759,23 +782,37 @@ class PreviewInvocationTests(DashTestCase):
 
         self.assertThat(self.dash.preview_displaying, Eventually(Equals(False)))
 
+    def test_preview_key(self):
+        """Pressing menu key on a selected dash result must show
+        its preview.
+        """
+        gettext.install("unity-lens-applications", unicode=True)
+        lens = self.dash.reveal_application_lens()
+        self.addCleanup(self.dash.ensure_hidden)
+
+        category = lens.get_category_by_name(_("More suggestions"))
+        results = category.get_results()
+        result = results[0]
+        # result.preview_key() handles finding xy co-ords and key press
+        result.preview_key()
+        self.assertThat(self.dash.preview_displaying, Eventually(Equals(True)))
+
 
 class PreviewNavigateTests(DashTestCase):
     """Tests that mouse navigation works with previews."""
 
     def setUp(self):
         super(PreviewNavigateTests, self).setUp()
+        gettext.install("unity-lens-applications", unicode=True)
 
-        self.dash.reveal_application_lens()
+        lens = self.dash.reveal_application_lens()
         self.addCleanup(self.dash.ensure_hidden)
 
-        lens = self.dash.get_current_lens()
-
-        results_category = lens.get_category_by_name("Installed")
-        results = results_category.get_results()
+        results_category = lens.get_category_by_name(_("More suggestions"))
         # wait for results (we need 4 results to perorm the multi-navigation tests)
-        refresh_fn = lambda: len(results)
+        refresh_fn = lambda: len(results_category.get_results())
         self.assertThat(refresh_fn, Eventually(GreaterThan(4)))
+        results = results_category.get_results()
 
         result = results[2] # 2 so we can navigate left
         result.preview()
@@ -889,7 +926,7 @@ class PreviewNavigateTests(DashTestCase):
         cover_art = self.preview_container.current_preview.cover_art
 
         tx = cover_art.x + (cover_art.width / 2)
-        ty = cover_art.y + (cover_art.height / 2)
+        ty = cover_art.y + (cover_art.height / 4)
         self.mouse.move(tx, ty)
         self.mouse.click(button=1)
 
@@ -900,7 +937,7 @@ class PreviewNavigateTests(DashTestCase):
         cover_art = self.preview_container.current_preview.cover_art
 
         tx = cover_art.x + (cover_art.width / 2)
-        ty = cover_art.y + (cover_art.height / 2)
+        ty = cover_art.y + (cover_art.height / 4)
         self.mouse.move(tx, ty)
         self.mouse.click(button=3)
 

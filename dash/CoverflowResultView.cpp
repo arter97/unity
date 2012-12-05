@@ -18,6 +18,7 @@
  */
 
 #include "CoverflowResultView.h"
+#include <UnityCore/Variant.h>
 #include "unity-shared/IconLoader.h"
 #include "unity-shared/IconTexture.h"
 #include "unity-shared/DashStyle.h"
@@ -83,11 +84,11 @@ CoverflowResultItem::CoverflowResultItem(Result& result, CoverflowResultView *pa
   std::string const& icon_hint = result.icon_hint;
   std::string icon_name = !icon_hint.empty() ? icon_hint : ". GThemedIcon text-x-preview";
   static const int element_size = style.GetTileHeight();
-  
+
   icon_texture_ = new IconTexture(icon_name.c_str(), element_size, true);
   icon_texture_->SinkReference();
   icon_texture_->LoadIcon();
-  
+
   icon_texture_->texture_updated.connect([&] (nux::BaseTexture *texture)
   {
     if (parent_)
@@ -124,18 +125,18 @@ nux::ObjectPtr<nux::BaseTexture> CoverflowResultItem::GetTexture() const
 
 void CoverflowResultItem::Activate(int button)
 {
-  //Left and right click take you to previews.
-  if (button == 1 || button == 3)
-    parent_->UriActivated.emit(result_.uri, ResultView::ActivateType::PREVIEW);
-  //Scroll click opens up music player.
-  else if (button == 2)
-    parent_->UriActivated.emit(result_.uri, ResultView::ActivateType::DIRECT);
-
   int index = Index();
   int size = model_->Items().size();
 
-  ubus_.SendMessage(UBUS_DASH_PREVIEW_INFO_PAYLOAD, 
-                    g_variant_new("(iiii)", 0, 0, index, size - index));
+  glib::Variant data(g_variant_new("(iiii)", 0, 0, index, size - index));
+
+  //Left and right click take you to previews.
+  if (button == 1 || button == 3)
+    parent_->Activate(result_.uri, index, ResultView::ActivateType::PREVIEW);
+  //Scroll click opens up music player.
+  else if (button == 2)
+    parent_->Activate(result_.uri, index, ResultView::ActivateType::DIRECT);
+
 }
 
 CoverflowResultView::Impl::Impl(CoverflowResultView *parent)
@@ -167,7 +168,7 @@ CoverflowResultView::Impl::Impl(CoverflowResultView *parent)
     glib::String proposed_unique_id;
 
     g_variant_get(data, "(iss)", &nav_mode, &uri, &proposed_unique_id);
-   
+
     if (proposed_unique_id.Str() != parent_->unique_id())
       return;
 
@@ -175,7 +176,7 @@ CoverflowResultView::Impl::Impl(CoverflowResultView *parent)
     int current_index = GetIndexForUri(uri);
     if (nav_mode == -1) // left
     {
-      current_index--;  
+      current_index--;
     }
     else if (nav_mode == 1) // right
     {
@@ -186,21 +187,18 @@ CoverflowResultView::Impl::Impl(CoverflowResultView *parent)
     {
       return;
     }
-    
+
     if (nav_mode)
     {
-      int left_results = current_index;
-      int right_results = num_results ? (num_results - current_index) - 1 : 0;
-      parent_->UriActivated.emit(GetUriForIndex(current_index), ActivateType::PREVIEW);
-      ubus_.SendMessage(UBUS_DASH_PREVIEW_INFO_PAYLOAD, 
-                              g_variant_new("(iiii)", 0, 0, left_results, right_results));
+      std::string uri = GetUriForIndex(current_index);
+      parent_->Activate(uri, current_index, ActivateType::PREVIEW);
     }
   });
 }
 
 CoverflowResultView::Impl::~Impl()
 {
-  
+
 }
 
 int CoverflowResultView::Impl::GetIndexForUri(std::string uri)
@@ -230,7 +228,7 @@ CoverflowResultView::CoverflowResultView(NUX_FILE_LINE_DECL)
 
 CoverflowResultView::~CoverflowResultView()
 {
-  
+
 }
 
 void CoverflowResultView::SetModelRenderer(ResultRenderer* renderer)
@@ -256,7 +254,7 @@ void CoverflowResultView::RemoveResult(Result& result)
       pimpl->coverflow_->model()->RemoveItem(item);
       break;
     }
-  }  
+  }
 }
 
 void CoverflowResultView::Draw(nux::GraphicsEngine& GfxContext, bool force_draw)
@@ -282,7 +280,7 @@ void CoverflowResultView::DrawContent(nux::GraphicsEngine& GfxContext, bool forc
 
     GfxContext.GetRenderStates().SetBlend(current_alpha_blend, current_src_blend_factor, current_dest_blend_factor);
   }
-  
+
   if (GetCompositionLayout())
   {
     nux::Geometry geo = GetCompositionLayout()->GetGeometry();
@@ -306,6 +304,20 @@ long CoverflowResultView::ComputeContentSize()
   pimpl->ComputeFlatIcons();
   long ret = ResultView::ComputeContentSize();
   return ret;
+}
+
+
+void CoverflowResultView::Activate(std::string const& uri, int index, ResultView::ActivateType type)
+{
+  unsigned num_results = pimpl->coverflow_->model()->Items().size();
+
+  int left_results = index;
+  int right_results = num_results ? (num_results - index) - 1 : 0;
+  int row_y = GetRootGeometry().y;
+  int row_height = renderer_->height;
+
+  glib::Variant data(g_variant_new("(iiii)", row_y, row_height, left_results, right_results));
+  UriActivated.emit(uri, type, data);
 }
 
 

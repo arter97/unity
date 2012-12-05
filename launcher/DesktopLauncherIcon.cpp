@@ -20,6 +20,7 @@
 #include "DesktopLauncherIcon.h"
 #include "unity-shared/WindowManager.h"
 #include "FavoriteStore.h"
+#include "config.h"
 
 #include <glib/gi18n-lib.h>
 
@@ -39,11 +40,10 @@ DesktopLauncherIcon::DesktopLauncherIcon()
   SetShortcut('d');
 }
 
-void
-DesktopLauncherIcon::ActivateLauncherIcon(ActionArg arg)
+void DesktopLauncherIcon::ActivateLauncherIcon(ActionArg arg)
 {
   SimpleLauncherIcon::ActivateLauncherIcon(arg);
-  WindowManager::Default()->ShowDesktop();
+  WindowManager::Default().ShowDesktop();
 }
 
 std::string DesktopLauncherIcon::GetName() const

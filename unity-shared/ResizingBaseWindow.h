@@ -35,8 +35,10 @@ public:
 
   void UpdateInputWindowGeometry()
   {
+#ifdef USE_X11
     if (m_input_window && m_input_window_enabled)
       m_input_window->SetGeometry(geo_func_(GetGeometry()));
+#endif
   }
 
   virtual void SetGeometry(const nux::Geometry &geo)

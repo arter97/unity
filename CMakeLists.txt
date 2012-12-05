@@ -8,7 +8,7 @@ include (cmake/Documentation.cmake)
 #
 set (PROJECT_NAME "unity")
 set (UNITY_MAJOR 6)
-set (UNITY_MINOR 12)
+set (UNITY_MINOR 6)
 set (UNITY_MICRO 0)
 set (UNITY_VERSION "${UNITY_MAJOR}.${UNITY_MINOR}.${UNITY_MICRO}")
 set (UNITY_API_VERSION "6.0")
@@ -17,12 +17,53 @@ set (CMAKE_CXX_FLAGS "-DGNOME_DESKTOP_USE_UNSTABLE_API -std=c++0x -fno-permissiv
 set (CMAKE_CXX_FLAGS_DEBUG "-g3")
 set (CMAKE_CXX_FLAGS_RELEASE "")
 
-if (BUILD_GLES)
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNUX_OPENGLES_20 -DUSE_GLES")
-    set (UNITY_STANDALONE_LADD "-lunity-core-${UNITY_API_VERSION} -lm -lpthread -ldl")
+option(
+  ENABLE_X_SUPPORT
+  "Enable X.org support in unity"
+  ON
+)
+
+# This is due to bug lp:668799 - qemu-arm segfaults executing msgmerge
+option(
+  I18N_SUPPORT
+  "Enable I18N, do the .po file thing."
+  ON
+)
+
+if (ENABLE_X_SUPPORT)
+  add_definitions(-DUSE_X11)
+  message("Unity is configured with support for X.org")
 else ()
-    set (UNITY_STANDALONE_LADD "-lunity-core-${UNITY_API_VERSION} -lm -lpthread -ldl -lGL -lGLU")
+  message("Unity is configured with without X.org")
+  add_definitions(-DNO_X11)
 endif ()
+
+if (BUILD_GLES)
+  add_definitions(-DNUX_OPENGLES_20)
+  add_definitions(-DUSE_GLES)
+  set (UNITY_STANDALONE_LADD "-lunity-core-${UNITY_API_VERSION} -lm -lpthread -ldl")
+else ()
+  set (UNITY_STANDALONE_LADD "-lunity-core-${UNITY_API_VERSION} -lm -lpthread -ldl -lGL -lGLU")
+endif ()
+
+if (CMAKE_BUILD_TYPE MATCHES coverage)
+  set (COVERAGE_XML_FILE "${CMAKE_BINARY_DIR}/coverage.xml")
+
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage" )
+  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --coverage" )
+  set (CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} --coverage" )
+  set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} --coverage" )
+
+  find_program(GCOVR_EXECUTABLE gcovr HINTS ${GCOVR_ROOT} "${GCOVR_ROOT}/bin")
+  if (NOT GCOVR_EXECUTABLE)
+      message(FATAL_ERROR "Cannot enable coverage targets because gcovr was not found.")
+  else ()
+      message (STATUS "Enabling XML coverage report")
+      add_custom_target (coverage-xml 
+          COMMAND  "${GCOVR_EXECUTABLE}" --exclude="tests.*" --exclude="obj-.*" -x -r "${CMAKE_SOURCE_DIR}" -o "${COVERAGE_XML_FILE}")
+  endif()
+endif (CMAKE_BUILD_TYPE MATCHES coverage)
+
 
 #
 # Niceties
@@ -43,7 +84,7 @@ add_custom_target (pre-distcheck
        && bzr tag ${UNITY_VERSION}
        && echo "• Running Distcheck"
   )
-  
+
 add_custom_target (dist
   COMMAND bzr export --root=${ARCHIVE_NAME} ${CMAKE_BINARY_DIR}/${ARCHIVE_NAME}.tar.bz2
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -89,11 +130,16 @@ set (LOCALE_DIR "${DATADIR}/locale")
 set (VERSION "${UNITY_VERSION}")
 set (BUILDDIR "${CMAKE_BINARY_DIR}")
 
+find_package (PkgConfig)
+execute_process (COMMAND ${PKG_CONFIG_EXECUTABLE} indicator3-0.4 --variable indicatordir OUTPUT_VARIABLE INDICATORDIR OUTPUT_STRIP_TRAILING_WHITESPACE)
+execute_process (COMMAND ${PKG_CONFIG_EXECUTABLE} indicator3-0.4 --variable iconsdir OUTPUT_VARIABLE INDICATORICONDIR OUTPUT_STRIP_TRAILING_WHITESPACE)
+
 configure_file (${CMAKE_SOURCE_DIR}/config.h.cmake ${CMAKE_BINARY_DIR}/config.h)
 
 #
 # i18n
 #
+
 find_package (Gettext REQUIRED)
 
 set (COMPIZ_I18N_DIR ${CMAKE_SOURCE_DIR}/po)
@@ -103,12 +149,14 @@ add_custom_command (OUTPUT ${CMAKE_SOURCE_DIR}/po/unity.pot
 		WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 		)
 
+if (I18N_SUPPORT)
 if (GETTEXT_FOUND)
         set (HAVE_GETTEXT true)
         file (GLOB _translations ${CMAKE_SOURCE_DIR}/po/*.po)
         GETTEXT_CREATE_TRANSLATIONS (${CMAKE_SOURCE_DIR}/po/${PROJECT_NAME}.pot
                 ALL ${_translations})
 endif (GETTEXT_FOUND)
+endif()
 
 #
 # Enable or disable boot logging
@@ -118,32 +166,69 @@ if (BOOT_LOGGER)
     SET (BOOT_LOGGER_FLAG "-DENABLE_LOGGER")
 endif (BOOT_LOGGER)
 
-SET (MAINTAINER_CFLAGS "-Werror -Wall -Wcast-align -Wempty-body -Wformat-security -Winit-self -Warray-bounds")
-option (DISABLE_MAINTAINER_CFLAGS "Disable maintainer CFlags" OFF)
-if (DISABLE_MAINTAINER_CFLAGS)
-  SET (MAINTAINER_CFLAGS "")
-endif (DISABLE_MAINTAINER_CFLAGS)
+SET (MAINTAINER_CXXFLAGS "-Werror -Wall -Wcast-align -Wempty-body -Wformat-security -Winit-self -Warray-bounds")
+option (DISABLE_MAINTAINER_CXXFLAGS "Disable maintainer CXXFlags" OFF)
+if (DISABLE_MAINTAINER_CXXFLAGS)
+  SET (MAINTAINER_CXXFLAGS "")
+endif (DISABLE_MAINTAINER_CXXFLAGS)
+
+# Make sure these flags are used for every build.
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MAINTAINER_CXXFLAGS}")
 
 #
 # Compiz Plugins
 #
-set (UNITY_PLUGIN_DEPS "compiz>=0.9.8.0;nux-3.0>=3.0.0;libbamf3;dee-1.0;gio-2.0;gio-unix-2.0;gmodule-2.0;dbusmenu-glib-0.4;x11;libstartup-notification-1.0;gthread-2.0;indicator3-0.4>=0.4.90;atk;atk-bridge-2.0;unity-misc>=0.4.0;dbus-glib-1;gtk+-3.0>=3.1;sigc++-2.0;json-glib-1.0;libnotify;xfixes;unity-protocol-private>=5.95.1;libgeis;xrender>=0.9;zeitgeist-1.0>=0.3.18")
-set (UNITY_PROTOCOL_PRIVATE_DEPS "unity-protocol-private>=5.95.1")
+set(UNITY_PROTOCOL_PRIVATE_DEPS unity-protocol-private>=5.95.1)
+set(UNITY_PLUGIN_SHARED_DEPS
+    ${UNITY_PROTOCOL_PRIVATE_DEPS}
+    atk
+    atk-bridge-2.0
+    dbusmenu-glib-0.4
+    dee-1.0
+    gio-2.0>=2.30.0
+    gio-unix-2.0
+    gmodule-2.0
+    gthread-2.0
+    gtk+-3.0>=3.1
+    indicator3-0.4>=0.4.90
+    json-glib-1.0
+    libbamf3
+    libnotify
+    libstartup-notification-1.0
+    nux-4.0>=4.0.0
+    sigc++-2.0
+    unity-misc>=0.4.0
+    zeitgeist-1.0>=0.3.18
+)
 
-find_package (PkgConfig)
+set(UNITY_PLUGIN_DEPS ${UNITY_PLUGIN_SHARED_DEPS})
+
+if(ENABLE_X_SUPPORT)
+  set(UNITY_PLUGIN_DEPS
+      ${UNITY_PLUGIN_DEPS}
+      compiz>=0.9.8.0
+      libgeis
+      x11
+      xfixes
+      xrender>=0.9
+  )
+endif ()
+
 pkg_check_modules (CACHED_UNITY_DEPS REQUIRED ${UNITY_PLUGIN_DEPS})
 pkg_check_modules (CACHED_UNITY_PRIVATE_DEPS REQUIRED ${UNITY_PROTOCOL_PRIVATE_DEPS})
 add_subdirectory(unity-shared)
-add_subdirectory(panel)
 add_subdirectory(dash)
-add_subdirectory(hud)
 add_subdirectory(launcher)
-add_subdirectory(shortcuts)
-add_subdirectory(unity-standalone)
-add_subdirectory(plugins/unityshell)
-add_subdirectory(plugins/networkarearegion)
-add_subdirectory(plugins/unitydialog)
-add_subdirectory(plugins/unity-mt-grab-handles)
+if (ENABLE_X_SUPPORT)
+  add_subdirectory(hud)
+  add_subdirectory(panel)
+  add_subdirectory(plugins/unityshell)
+  add_subdirectory(plugins/networkarearegion)
+  add_subdirectory(plugins/unitydialog)
+  add_subdirectory(plugins/unity-mt-grab-handles)
+  add_subdirectory(shortcuts)
+  add_subdirectory(unity-standalone)
+endif ()
 
 # subdirs
 add_subdirectory(doc)
@@ -155,6 +240,14 @@ set(
   CACHE
   PATH
   "Path to Google test srcs"
+)
+
+set(
+  GTEST_INCLUDE_DIR
+  "/usr/include/gtest"
+  CACHE
+  PATH
+  "Path to Google tests include"
 )
 
 find_path(GTEST_INCLUDE_DIR gtest/gtest.h)
@@ -201,6 +294,12 @@ message (STATUS "GSettings schemas will be installed into ${GSETTINGS_DIR}")
 install (FILES ${UNITY_SCHEMAS} DESTINATION ${GSETTINGS_DIR} OPTIONAL)
 install (CODE "message (STATUS \"Compiling GSettings schemas\")")
 install (CODE "execute_process (COMMAND ${_glib_comple_schemas} ${GSETTINGS_DIR})")
+
+# Resources
+install (FILES resources/dash-widgets.json DESTINATION ${CMAKE_INSTALL_PREFIX}/share/unity/themes)
+file (GLOB _datafiles "${CMAKE_CURRENT_SOURCE_DIR}/resources/*")
+install (FILES ${_datafiles} DESTINATION ${PKGDATADIR})
+
 
 # For testing
 configure_file (${CMAKE_SOURCE_DIR}/${UNITY_SCHEMAS} ${CMAKE_BINARY_DIR}/settings/${UNITY_SCHEMAS})

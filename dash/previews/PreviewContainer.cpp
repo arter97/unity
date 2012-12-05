@@ -37,6 +37,7 @@ namespace dash
 {
 namespace previews
 {
+DECLARE_LOGGER(logger, "unity.dash.preview.container");
 
 Navigation operator&(const Navigation lhs, const Navigation rhs)
 {
@@ -45,13 +46,8 @@ Navigation operator&(const Navigation lhs, const Navigation rhs)
 
 namespace
 {
-nux::logging::Logger logger("unity.dash.previews.previewcontainer");
-
-
-
-const int ANIM_DURATION_SHORT_SHORT = 100;
-const int ANIM_DURATION = 200;
 const int ANIM_DURATION_LONG = 500;
+const int PREVIEW_SPINNER_WAIT = 300;
 
 const std::string ANIMATION_IDLE = "animation-idle";
 }
@@ -99,17 +95,21 @@ public:
 
   void PushPreview(previews::Preview::Ptr preview, Navigation direction)
   {
-    preview_initiate_count_++;
-    StopPreviewWait();
-
     if (preview)
     {
+      preview_initiate_count_++;
+      StopPreviewWait();
       // the parents layout will not change based on the previews.
       preview->SetReconfigureParentLayoutOnGeometryChange(false);
       
       AddChild(preview.GetPointer());
       AddView(preview.GetPointer());
       preview->SetVisible(false);
+    }
+    else
+    {
+      // if we push a null preview, then start waiting.
+      StartPreviewWait();      
     }
     PreviewSwipe swipe;
     swipe.direction = direction;
@@ -227,7 +227,7 @@ public:
 
   void StartPreviewWait()
   {
-    preview_wait_timer_.reset(new glib::Timeout(300, [&] () {
+    preview_wait_timer_.reset(new glib::Timeout(PREVIEW_SPINNER_WAIT, [&] () {
 
       if (waiting_preview_)
         return false;
@@ -571,7 +571,7 @@ static float easeInOutQuart(float t)
 
 float PreviewContainer::GetSwipeAnimationProgress(struct timespec const& current) const
 {
-  int time_delta = TimeUtil::TimeDelta(&current, &last_progress_time_);
+  DeltaTime time_delta = TimeUtil::TimeDelta(&current, &last_progress_time_);
   float progress = content_layout_->GetAnimationProgress() + (navigation_progress_speed_ * time_delta);
 
   return progress;

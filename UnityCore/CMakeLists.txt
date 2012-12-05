@@ -1,5 +1,14 @@
 find_package (PkgConfig)
-pkg_check_modules (CORE_DEPS REQUIRED glib-2.0 gio-2.0 dee-1.0 sigc++-2.0 nux-core-3.0 gdk-pixbuf-2.0 unity-protocol-private)
+set(UNITY_CORE_DEPS
+    glib-2.0
+    gio-2.0
+    dee-1.0
+    sigc++-2.0
+    nux-core-4.0
+    gdk-pixbuf-2.0
+    unity-protocol-private
+)
+pkg_check_modules (CORE_DEPS REQUIRED ${UNITY_CORE_DEPS})
 pkg_check_modules (PRIVATE_CORE_DEPS REQUIRED unity-protocol-private)
 
 execute_process (COMMAND ${PKG_CONFIG_EXECUTABLE} unity --variable lensesdir OUTPUT_VARIABLE _lensesdir OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -95,14 +104,11 @@ set (CORE_SOURCES
 # CFLAGS and LIBS
 #
 set (CFLAGS
-     ${CORE_DEPS_CFLAGS}
-     ${CORE_DEPS_CFLAGS_OTHER}
-     ${MAINTAINER_CFLAGS}
-     "-I${CMAKE_BINARY_DIR}"
-     "-DGETTEXT_PACKAGE=\"unity\""
      "-DLENSES_DIR=\"${_lensesdir}\""
      )
 add_definitions (${CFLAGS})
+include_directories(${CORE_DEPS_INCLUDE_DIRS})
+include_directories(${CMAKE_BINARY_DIR})
 
 set (LIBS ${CORE_DEPS_LIBRARIES})
 

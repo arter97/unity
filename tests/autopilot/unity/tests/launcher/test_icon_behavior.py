@@ -15,7 +15,7 @@ import logging
 from testtools.matchers import Equals, NotEquals
 from time import sleep
 
-from unity.emulators.icons import BamfLauncherIcon, ExpoLauncherIcon
+from unity.emulators.icons import ApplicationLauncherIcon, ExpoLauncherIcon
 from unity.emulators.launcher import IconDragType
 from unity.tests.launcher import LauncherTestCase, _make_scenarios
 
@@ -49,24 +49,30 @@ class LauncherIconsTests(LauncherTestCase):
         return icon
 
     def test_bfb_tooltip_disappear_when_dash_is_opened(self):
-         """Tests that the bfb tooltip disappear when the dash is opened."""
-         bfb = self.launcher.model.get_bfb_icon()
-         self.mouse.move(bfb.center_x, bfb.center_y)
+        """Tests that the bfb tooltip disappear when the dash is opened."""
+        bfb = self.launcher.model.get_bfb_icon()
+        self.mouse.move(bfb.center_x, bfb.center_y)
 
-         self.dash.ensure_visible()
-         self.addCleanup(self.dash.ensure_hidden)
+        self.assertThat(bfb.get_tooltip().active, Eventually(Equals(True)))
+        self.dash.ensure_visible()
+        self.addCleanup(self.dash.ensure_hidden)
 
-         self.assertThat(bfb.get_tooltip().active, Eventually(Equals(False)))
+        self.assertThat(bfb.get_tooltip().active, Eventually(Equals(False)))
 
     def test_bfb_tooltip_is_disabled_when_dash_is_open(self):
-         """Tests the that bfb tooltip is disabled when the dash is open."""
-         self.dash.ensure_visible()
-         self.addCleanup(self.dash.ensure_hidden)
+        """Tests the that bfb tooltip is disabled when the dash is open."""
+        self.dash.ensure_visible()
+        self.addCleanup(self.dash.ensure_hidden)
 
-         bfb = self.launcher.model.get_bfb_icon()
-         self.mouse.move(bfb.center_x, bfb.center_y)
+        bfb = self.launcher.model.get_bfb_icon()
+        self.mouse.move(bfb.center_x, bfb.center_y)
 
-         self.assertThat(bfb.get_tooltip().active, Eventually(Equals(False)))
+        # Tooltips are lazy-created  in Unity, so if the BFB tooltip has never
+        # been shown before, get_tooltip will return None. If that happens, then
+        # this test should pass.
+        tooltip = bfb.get_tooltip()
+        if tooltip is not None:
+            self.assertThat(tooltip.active, Eventually(Equals(False)))
 
     def test_shift_click_opens_new_application_instance(self):
         """Shift+Clicking MUST open a new instance of an already-running application."""
@@ -223,14 +229,22 @@ class LauncherDragIconsBehavior(LauncherTestCase):
                                        ('outside', {'drag_type': IconDragType.OUTSIDE}),
                                    ])
 
+    def setUp(self):
+        super(LauncherDragIconsBehavior, self).setUp()
+        self.set_unity_option('launcher_hide_mode', 0)
+
     def ensure_calc_icon_not_in_launcher(self):
         """Wait until the launcher model updates and removes the calc icon."""
         # Normally we'd use get_icon(desktop_id="...") but we're expecting it to
         # not exist, and we don't want to wait for 10 seconds, so we do this
         # the old fashioned way.
-        refresh_fn = lambda: self.launcher.model.get_children_by_type(
-            BamfLauncherIcon, desktop_id="gcalctool.desktop")
-        self.assertThat(refresh_fn, Eventually(Equals([])))
+        get_icon_fn = lambda: self.launcher.model.get_children_by_type(
+            ApplicationLauncherIcon, desktop_id="gcalctool.desktop")
+        calc_icon = get_icon_fn()
+        if calc_icon:
+            self.launcher_instance.unlock_from_launcher(calc_icon[0])
+
+        self.assertThat(get_icon_fn, Eventually(Equals([])))
 
     def test_can_drag_icon_below_bfb(self):
         """Application icons must be draggable to below the BFB."""
@@ -238,33 +252,40 @@ class LauncherDragIconsBehavior(LauncherTestCase):
         self.ensure_calc_icon_not_in_launcher()
         calc = self.start_app("Calculator")
         calc_icon = self.launcher.model.get_icon(desktop_id=calc.desktop_file)
+        bfb_icon = self.launcher.model.get_bfb_icon()
 
-        bfb_icon_position = 0
-        self.launcher_instance.drag_icon_to_position(calc_icon,
-                                                     bfb_icon_position,
-                                                     self.drag_type)
+        self.launcher_instance.drag_icon_to_position(
+            calc_icon,
+            IconDragType.AFTER,
+            bfb_icon,
+            self.drag_type)
         moved_icon = self.launcher.model.\
                      get_launcher_icons_for_monitor(self.launcher_monitor)[1]
         self.assertThat(moved_icon.id, Equals(calc_icon.id))
 
-    def test_can_drag_icon_above_window_switcher(self):
-        """Application icons must be dragable to above the workspace switcher icon."""
+    def test_can_drag_icon_below_window_switcher(self):
+        """Application icons must be dragable to below the workspace switcher icon."""
 
         self.ensure_calc_icon_not_in_launcher()
         calc = self.start_app("Calculator")
         calc_icon = self.launcher.model.get_icon(desktop_id=calc.desktop_file)
+        bfb_icon = self.launcher.model.get_bfb_icon()
+        trash_icon = self.launcher.model.get_trash_icon()
 
         # Move a known icon to the top as it needs to be more than 2 icon
         # spaces away for this test to actually do anything
-        bfb_icon_position = 0
-        self.launcher_instance.drag_icon_to_position(calc_icon,
-                                                     bfb_icon_position,
-                                                     self.drag_type)
+        self.launcher_instance.drag_icon_to_position(
+            calc_icon,
+            IconDragType.AFTER,
+            bfb_icon,
+            self.drag_type)
+
         sleep(1)
-        target_pos = -2
-        self.launcher_instance.drag_icon_to_position(calc_icon,
-                                                     target_pos,
-                                                     self.drag_type)
+        self.launcher_instance.drag_icon_to_position(
+            calc_icon,
+            IconDragType.BEFORE,
+            trash_icon,
+            self.drag_type)
 
         # Must be the last bamf icon - not necessarily the third-from-end icon.
         refresh_fn = lambda: self.launcher.model.get_launcher_icons()[-2].id

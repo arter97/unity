@@ -18,7 +18,6 @@
  */
 
 #include "LensView.h"
-#include "LensViewPrivate.h"
 
 #include <boost/lexical_cast.hpp>
 
@@ -34,17 +33,18 @@
 #include "unity-shared/UBusMessages.h"
 #include "unity-shared/UBusWrapper.h"
 #include "unity-shared/PlacesVScrollBar.h"
+#include "unity-shared/PlacesOverlayVScrollBar.h"
 
+#include "config.h"
 #include <glib/gi18n-lib.h>
 
 namespace unity
 {
 namespace dash
 {
+DECLARE_LOGGER(logger, "unity.dash.lensview");
 namespace
 {
-nux::logging::Logger logger("unity.dash.lensview");
-
 const int CARD_VIEW_GAP_VERT  = 24; // pixels
 const int CARD_VIEW_GAP_HORIZ = 25; // pixels
 }
@@ -59,6 +59,13 @@ public:
     , up_area_(nullptr)
   {
     SetVScrollBar(scroll_bar);
+
+    OnVisibleChanged.connect([&] (nux::Area* /*area*/, bool visible) {
+      if (m_horizontal_scrollbar_enable)
+        _hscrollbar->SetVisible(visible);
+      if (m_vertical_scrollbar_enable)
+        _vscrollbar->SetVisible(visible);
+    });
   }
 
   void ScrollToPosition(nux::Geometry const& position)
@@ -157,12 +164,12 @@ LensView::LensView(Lens::Ptr lens, nux::Area* show_filters)
   lens_->connected.changed.connect([&](bool is_connected) { if (is_connected) initial_activation_ = true; });
   lens_->categories_reordered.connect(sigc::mem_fun(this, &LensView::OnCategoryOrderChanged));
   search_string.SetGetterFunction(sigc::mem_fun(this, &LensView::get_search_string));
-  filters_expanded.changed.connect([&](bool expanded) 
-  { 
-    fscroll_view_->SetVisible(expanded); 
-    QueueRelayout(); 
+  filters_expanded.changed.connect([&](bool expanded)
+  {
+    fscroll_view_->SetVisible(expanded);
+    QueueRelayout();
     OnColumnsChanged();
-    ubus_manager_.SendMessage(UBUS_REFINE_STATUS, 
+    ubus_manager_.SendMessage(UBUS_REFINE_STATUS,
                               g_variant_new(UBUS_REFINE_STATUS_FORMAT_STRING, expanded ? TRUE : FALSE));
   });
   view_type.changed.connect(sigc::mem_fun(this, &LensView::OnViewTypeChanged));
@@ -194,6 +201,10 @@ LensView::LensView(Lens::Ptr lens, nux::Area* show_filters)
     }
   });
 
+  OnVisibleChanged.connect([&] (nux::Area* area, bool visible) {
+    scroll_view_->SetVisible(visible);
+  });
+
 }
 
 void LensView::SetupViews(nux::Area* show_filters)
@@ -203,9 +214,9 @@ void LensView::SetupViews(nux::Area* show_filters)
   layout_ = new nux::HLayout(NUX_TRACKER_LOCATION);
   layout_->SetSpaceBetweenChildren(style.GetSpaceBetweenLensAndFilters());
 
-  scroll_view_ = new LensScrollView(new PlacesVScrollBar(NUX_TRACKER_LOCATION),
+  scroll_view_ = new LensScrollView(new PlacesOverlayVScrollBar(NUX_TRACKER_LOCATION),
                                     NUX_TRACKER_LOCATION);
-  scroll_view_->EnableVerticalScrollBar(false);
+  scroll_view_->EnableVerticalScrollBar(true);
   scroll_view_->EnableHorizontalScrollBar(false);
   layout_->AddView(scroll_view_);
 
@@ -355,25 +366,24 @@ void LensView::OnCategoryAdded(Category const& category)
   grid->expanded = false;
 
   group->SetRendererName(renderer_name.c_str());
-  grid->UriActivated.connect(sigc::bind([&] (std::string const& uri, ResultView::ActivateType type, std::string const& view_id) 
+  grid->UriActivated.connect(sigc::bind([&] (std::string const& uri, ResultView::ActivateType type, GVariant* data, std::string const& view_id) 
   {
+    uri_activated.emit(type, uri, data, view_id); 
     switch (type)
     {
       case ResultView::ActivateType::DIRECT:
       {
-        uri_activated.emit(uri); 
-        lens_->Activate(uri);  
+        lens_->Activate(uri);
       } break;
       case ResultView::ActivateType::PREVIEW:
       {
-        uri_preview_activated.emit(uri, view_id);
         lens_->Preview(uri);
       } break;
       default: break;
     };
 
   }, unique_id));
-  
+
 
   /* Set up filter model for this category */
   Results::Ptr results_model = lens_->results;
@@ -406,8 +416,8 @@ void LensView::OnCategoryAdded(Category const& category)
 
   /* We need the full range of method args so we can specify the offset
    * of the group into the layout */
-  scroll_layout_->AddView(group, 0, nux::MinorDimensionPosition::eAbove,
-                          nux::MinorDimensionSize::eFull, 100.0f,
+  scroll_layout_->AddView(group, 0, nux::MinorDimensionPosition::MINOR_POSITION_START,
+                          nux::MinorDimensionSize::MINOR_SIZE_FULL, 100.0f,
                           (nux::LayoutPosition)index);
 }
 
@@ -459,6 +469,13 @@ ResultViewGrid* LensView::GetGridForCategory(unsigned category_index)
   if (category_index >= categories_.size()) return nullptr;
   PlacesGroup* group = categories_.at(category_index);
   return static_cast<ResultViewGrid*>(group->GetChildView());
+}
+
+ResultView* LensView::GetResultViewForCategory(unsigned category_index)
+{
+  if (category_index >= categories_.size()) return nullptr;
+  PlacesGroup* group = categories_.at(category_index);
+  return static_cast<ResultView*>(group->GetChildView());
 }
 
 void LensView::OnResultAdded(Result const& result)
@@ -520,35 +537,6 @@ void LensView::UpdateCounts(PlacesGroup* group)
 
   group->SetCounts(columns, counts_[group]);
   group->SetVisible(counts_[group]);
-
-  QueueFixRenderering();
-}
-
-void LensView::QueueFixRenderering()
-{
-  if (fix_rendering_idle_)
-    return;
-
-  fix_rendering_idle_.reset(new glib::Idle(sigc::mem_fun(this, &LensView::FixRenderering),
-                                           glib::Source::Priority::DEFAULT));
-}
-
-bool LensView::FixRenderering()
-{
-  std::list<AbstractPlacesGroup*> groups;
-
-  for (auto child : scroll_layout_->GetChildren())
-  {
-    if (child == no_results_)
-      continue;
-
-    groups.push_back(static_cast<AbstractPlacesGroup*>(child));
-  }
-
-  dash::impl::UpdateDrawSeparators(groups);
-
-  fix_rendering_idle_.reset();
-  return false;
 }
 
 void LensView::CheckNoResults(Lens::Hints const& hints)
@@ -629,10 +617,10 @@ void LensView::HideResultsMessage()
   }
 }
 
-void LensView::PerformSearch(std::string const& search_query)
+void LensView::PerformSearch(std::string const& search_query, Lens::SearchFinishedCallback const& cb)
 {
   search_string_ = search_query;
-  lens_->Search(search_query);
+  lens_->Search(search_query, cb);
 }
 
 std::string LensView::get_search_string() const
@@ -688,7 +676,7 @@ void LensView::OnViewTypeChanged(ViewType view_type)
   if (view_type != HIDDEN && initial_activation_)
   {
     /* We reset the lens for ourselves, in case this is a restart or something */
-    lens_->Search(search_string_);
+    lens_->Search(search_string_, [] (Lens::Hints const&, glib::Error const&) {});
     initial_activation_ = false;
   }
 
@@ -732,7 +720,7 @@ void LensView::DrawContent(nux::GraphicsEngine& gfx_context, bool force_draw)
     gfx_context.QRP_Color(GetX(), GetY(), GetWidth(), GetHeight(), nux::Color(0.0f, 0.0f, 0.0f, 0.0f));
     gfx_context.GetRenderStates().SetBlend(alpha, src, dest);
   }
-  
+
   layout_->ProcessDraw(gfx_context, force_draw);
   gfx_context.PopClippingRectangle();
 }
@@ -784,22 +772,22 @@ void LensView::ActivateFirst()
     for (unsigned int i = 0; i < category_order.size(); i++)
     {
       unsigned cat_index = category_order.at(i);
-      ResultViewGrid* grid = GetGridForCategory(cat_index);
-      if (grid == nullptr) continue;
-      auto it = grid->GetIteratorAtRow(0);
+      ResultView* result_view = GetResultViewForCategory(cat_index);
+      if (result_view == nullptr) continue;
+      auto it = result_view->GetIteratorAtRow(0);
       if (!it.IsLast())
       {
         Result result(*it);
-        uri_activated(result.uri);
-        lens_->Activate(result.uri);
+        result_view->Activate(result.uri, result_view->GetIndexForUri(result.uri), ResultView::ActivateType::DIRECT);
         return;
       }
     }
+
     // Fallback
     Result result = results->RowAtIndex(0);
     if (result.uri != "")
     {
-      uri_activated(result.uri);
+      uri_activated.emit(ResultView::ActivateType::DIRECT, result.uri, nullptr, "");
       lens_->Activate(result.uri);
     }
   }

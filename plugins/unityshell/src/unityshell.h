@@ -64,8 +64,11 @@
 #include "HudController.h"
 #include "WindowMinimizeSpeedController.h"
 
+#include "unityshell_glow.h"
+
 namespace unity
 {
+class UnityWindow;
 
 /* base screen class */
 class UnityScreen :
@@ -109,8 +112,6 @@ public:
                      CompOption::Vector &o);
 
   void damageRegion(const CompRegion &region);
-
-  bool shellCouldBeHidden(CompOutput const& output);
 
   /* paint on top of all windows if we could not find a window
    * to paint underneath */
@@ -233,6 +234,9 @@ private:
   void OnSwitcherStart(GVariant* data);
   void OnSwitcherEnd(GVariant* data);
 
+  void OnInitiateSpread();
+  void OnTerminateSpread();
+
   void RestoreWindow(GVariant* data);
   bool SaveInputThenFocus(const guint xid);
 
@@ -301,6 +305,7 @@ private:
   bool    _key_nav_mode_requested;
   CompOutput* _last_output;
 
+  CompRegion panelShadowPainted;
   CompRegion nuxRegion;
   CompRegion fullscreenRegion;
   CompWindow* firstWindowAboveShell;
@@ -327,6 +332,7 @@ private:
   bool panel_texture_has_changed_;
   bool paint_panel_;
   nux::ObjectPtr<nux::IOpenGLBaseTexture> panel_texture_;
+  std::set<UnityWindow*> fake_decorated_windows_;
 
   bool scale_just_activated_;
   WindowMinimizeSpeedController minimize_speed_controller_;
@@ -386,7 +392,7 @@ public:
   CompPoint tryNotIntersectUI(CompPoint& pos);
   nux::Geometry GetScaledGeometry();
 
-  void paintThumbnail(nux::Geometry const& bounding, float alpha);
+  void paintThumbnail(nux::Geometry const& bounding, float alpha, float scale_ratio, unsigned deco_height, bool selected);
 
   void enterShowDesktop();
   void leaveShowDesktop();
@@ -446,7 +452,13 @@ private:
   void RenderDecoration(CairoContext const&, double aspect = 1.0f);
   void RenderText(CairoContext const&, int x, int y, int width, int height);
   void DrawTexture(GLTexture::List const& textures, GLWindowPaintAttrib const&,
-                   GLMatrix const&, unsigned mask, int x, int y, double scale = 1.0f);
+                   GLMatrix const&, unsigned mask, int x, int y, double aspect = 1.0f);
+
+  void paintFakeDecoration(nux::Geometry const& geo, GLWindowPaintAttrib const& attrib, GLMatrix const& transform, unsigned int mask, bool highlighted, double scale);
+  void paintInnerGlow(nux::Geometry glow_geo, GLMatrix const&, GLWindowPaintAttrib const&, unsigned mask);
+  glow::Quads computeGlowQuads(nux::Geometry const& geo, GLTexture::List const& texture, int glow_size);
+  void paintGlow(GLMatrix const&, GLWindowPaintAttrib const&, glow::Quads const&,
+                 GLTexture::List const&, nux::Color const&, unsigned mask);
 
   void BuildDecorationTexture();
   void CleanupCachedTextures();
@@ -462,12 +474,14 @@ private:
   static GLTexture::List close_normal_tex_;
   static GLTexture::List close_prelight_tex_;
   static GLTexture::List close_pressed_tex_;
+  static GLTexture::List glow_texture_;
   PixmapTexturePtr decoration_tex_;
   PixmapTexturePtr decoration_selected_tex_;
   std::string decoration_title_;
   compiz::WindowInputRemoverLock::Weak input_remover_;
   panel::WindowState close_icon_state_;
   nux::Geometry close_button_geo_;
+  bool middle_clicked_;
   glib::Source::UniquePtr focus_desktop_timeout_;
 
   friend class UnityScreen;

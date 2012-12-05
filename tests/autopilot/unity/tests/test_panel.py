@@ -19,6 +19,7 @@ from time import sleep
 from unity.emulators.panel import IndicatorEntry
 from unity.tests import UnityTestCase
 
+import gettext
 
 logger = logging.getLogger(__name__)
 
@@ -145,10 +146,14 @@ class PanelTitleTests(PanelTestsBase):
 
     def test_panel_title_on_empty_desktop(self):
         """With no windows shown, the panel must display the default title."""
+        gettext.install("unity", unicode=True)
+        # We need to start any application, otherwise we cannot leave show desktop mode
+        self.start_app_window('Calculator')
         self.window_manager.enter_show_desktop()
         self.addCleanup(self.window_manager.leave_show_desktop)
 
         self.assertThat(self.panel.desktop_is_active, Eventually(Equals(True)))
+        self.assertThat(self.panel.title, Equals(_("Ubuntu Desktop")))
 
     def test_panel_title_with_restored_application(self):
         """Panel must display application name for a non-maximised application."""
@@ -589,7 +594,7 @@ class PanelWindowButtonsTests(PanelTestsBase):
             maximized=True,
             move_to_monitor=True)
 
-        indicator = self.panel.indicators.get_indicator_by_name_hint("indicator-session-devices")
+        indicator = self.panel.indicators.get_indicator_by_name_hint("indicator-session")
         self.mouse_open_indicator(indicator)
         self.assertThat(self.panel.window_buttons_shown, Eventually(Equals(False)))
 
@@ -790,27 +795,36 @@ class PanelMenuTests(PanelTestsBase):
 
     scenarios = _make_monitor_scenarios()
 
+    def start_test_app_with_menus(self):
+        window_spec = {
+            "Title": "Test Application with Menus",
+            "Menu": [
+                {
+                    "Title": "&File",
+                    "Menu": ["Open", "Save", "Save As", "Quit"]
+                },
+                {"Title": "&Edit"},
+                {"Title": "&Quit"}
+                ]
+        }
+        self.launch_test_window(window_spec)
+
     def test_menus_are_added_on_new_application(self):
         """Tests that menus are added when a new application is opened."""
-        self.open_new_application_window("Calculator")
+        self.start_test_app_with_menus()
 
         refresh_fn = lambda: len(self.panel.menus.get_entries())
         self.assertThat(refresh_fn, Eventually(Equals(3)))
 
         menu_view = self.panel.menus
-        self.assertThat(lambda: menu_view.get_menu_by_label("_Calculator"), Eventually(NotEquals(None)))
-        self.assertThat(lambda: menu_view.get_menu_by_label("_Mode"), Eventually(NotEquals(None)))
-        self.assertThat(lambda: menu_view.get_menu_by_label("_Help"), Eventually(NotEquals(None)))
+        self.assertThat(lambda: menu_view.get_menu_by_label("_File"), Eventually(NotEquals(None)))
+        self.assertThat(lambda: menu_view.get_menu_by_label("_Edit"), Eventually(NotEquals(None)))
+        self.assertThat(lambda: menu_view.get_menu_by_label("_Quit"), Eventually(NotEquals(None)))
 
     def test_menus_are_not_shown_if_the_application_has_no_menus(self):
-        """Tests that if an application has no menus, then they are not
-        shown or added.
-        """
-        # TODO: This doesn't test what it says on the tin. Setting MENUPROXY to ''
-        # just makes the menu appear inside the app. That's fine, but it's not
-        # what is described in the docstring or test id.
-        self.patch_environment("UBUNTU_MENUPROXY", "")
-        calc_win = self.open_new_application_window("Calculator")
+        """Applications with no menus must not show menus in the panel."""
+
+        test_win = self.launch_test_window()
 
         self.assertThat(
             lambda: len(self.panel.menus.get_entries()),
@@ -818,12 +832,13 @@ class PanelMenuTests(PanelTestsBase):
             "Current panel entries are: %r" % self.panel.menus.get_entries())
 
         self.panel.move_mouse_over_grab_area()
-        self.assertThat(self.panel.title, Eventually(Equals(calc_win.application.name)))
+        self.assertThat(self.panel.title, Eventually(Equals(test_win.application.name)))
 
     def test_menus_shows_when_new_application_is_opened(self):
-        """This tests the menu discovery feature on new application."""
+        """When starting a new application, menus must first show, then hide."""
 
-        self.open_new_application_window("Calculator")
+        self.start_test_app_with_menus()
+
         self.assertThat(self.panel.menus_shown, Eventually(Equals(True)))
         self.sleep_menu_settle_period()
         self.assertThat(self.panel.menus_shown, Eventually(Equals(False)))
@@ -1215,7 +1230,7 @@ class PanelCrossMonitorsTests(PanelTestsBase):
         """Opening an indicator entry and then hovering others entries must open them."""
         text_win = self.open_new_application_window("Text Editor")
         panel = self.panels.get_panel_for_monitor(text_win.monitor)
-        indicator = panel.indicators.get_indicator_by_name_hint("indicator-session-devices")
+        indicator = panel.indicators.get_indicator_by_name_hint("indicator-session")
         self.mouse_open_indicator(indicator)
 
         for monitor in range(0, self.screen_geo.get_num_monitors()):

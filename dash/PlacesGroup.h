@@ -21,6 +21,7 @@
 #define UNITYSHELL_PLACES_GROUP_H
 
 #include <Nux/Nux.h>
+#include <Nux/View.h>
 #include <Nux/VLayout.h>
 #include <Nux/HLayout.h>
 #include <Nux/TextureArea.h>
@@ -35,8 +36,6 @@
 
 #include <UnityCore/GLibSource.h>
 
-#include "AbstractPlacesGroup.h"
-
 #include "ResultView.h"
 
 namespace nux
@@ -50,9 +49,9 @@ namespace unity
 
 class HSeparator;
 
-class PlacesGroup : public dash::AbstractPlacesGroup, public debug::Introspectable
+class PlacesGroup : public nux::View, public debug::Introspectable
 {
-  NUX_DECLARE_OBJECT_TYPE(PlacesGroup, dash::AbstractPlacesGroup);
+  NUX_DECLARE_OBJECT_TYPE(PlacesGroup, nux::View);
 public:
 
   PlacesGroup(dash::StyleInterface& style);
@@ -92,7 +91,6 @@ protected:
   long ComputeContentSize();
   void Draw(nux::GraphicsEngine& graphics_engine, bool force_draw);
   void DrawContent(nux::GraphicsEngine& graphics_engine, bool force_draw);
-  void PostDraw (nux::GraphicsEngine &graphics_engine, bool force_draw);
 
   // Key navigation
   virtual bool AcceptKeyNavFocus();
@@ -144,7 +142,7 @@ private:
   unsigned _category_index;
   std::string _cached_name;
   nux::Geometry _cached_geometry;
-  
+
   std::string _renderer_name;
   bool _coverflow_enabled;
 

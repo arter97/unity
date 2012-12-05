@@ -23,7 +23,7 @@
 #include "SwitcherModel.h"
 #include "unity-shared/AbstractIconRenderer.h"
 #include "unity-shared/StaticCairoText.h"
-#include "LayoutSystem.h"
+#include "unity-shared/LayoutSystem.h"
 #include "unity-shared/BackgroundEffectHelper.h"
 #include "unity-shared/UnityWindowView.h"
 
@@ -50,7 +50,7 @@ public:
 
   SwitcherView();
 
-  ui::LayoutWindowList ExternalTargets ();
+  ui::LayoutWindow::Vector ExternalTargets();
 
   void SetModel(SwitcherModel::Ptr model);
   SwitcherModel::Ptr GetModel();
@@ -85,9 +85,9 @@ protected:
 
   std::list<ui::RenderArg> RenderArgsFlat(nux::Geometry& background_geo, int selection, timespec const& current);
 
-  ui::RenderArg CreateBaseArgForIcon(launcher::AbstractLauncherIcon::Ptr icon);
+  ui::RenderArg CreateBaseArgForIcon(launcher::AbstractLauncherIcon::Ptr const& icon);
 private:
-  void OnSelectionChanged(launcher::AbstractLauncherIcon::Ptr selection);
+  void OnSelectionChanged(launcher::AbstractLauncherIcon::Ptr const& selection);
   void OnDetailSelectionChanged (bool detail);
   void OnDetailSelectionIndexChanged (unsigned int index);
 
@@ -109,13 +109,14 @@ private:
 
   void SaveLast ();
 
-  ui::LayoutSystem::Ptr layout_system_;
-  ui::AbstractIconRenderer::Ptr icon_renderer_;
   SwitcherModel::Ptr model_;
+  ui::LayoutSystem layout_system_;
+  ui::AbstractIconRenderer::Ptr icon_renderer_;
+  nux::ObjectPtr<nux::StaticCairoText> text_view_;
+
+  bool animation_draw_;
   bool target_sizes_set_;
 
-  nux::ObjectPtr<nux::BaseTexture> rounding_texture_;
-  nux::ObjectPtr<nux::StaticCairoText> text_view_;
 
   std::list<ui::RenderArg> last_args_;
   std::list<ui::RenderArg> saved_args_;
@@ -123,12 +124,10 @@ private:
   nux::Geometry last_background_;
   nux::Geometry saved_background_;
 
-  ui::LayoutWindowList render_targets_;
+  ui::LayoutWindow::Vector render_targets_;
 
   timespec current_;
   timespec save_time_;
-
-  bool animation_draw_;
 
   glib::Source::UniquePtr redraw_idle_;
 };

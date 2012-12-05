@@ -68,10 +68,9 @@ public:
   nux::Property<ViewType> view_type;
   nux::Property<bool> can_refine_search;
 
-  sigc::signal<void, std::string const&> uri_activated;
-  sigc::signal<void, std::string const&, std::string const&> uri_preview_activated;
+  sigc::signal<void, ResultView::ActivateType, std::string const&, GVariant*, std::string const&> uri_activated;
 
-  void PerformSearch(std::string const& search_query);
+  void PerformSearch(std::string const& search_query, Lens::SearchFinishedCallback const& cb);
   void CheckNoResults(Lens::Hints const& hints);
   void CheckCategoryExpansion();
   void HideResultsMessage();
@@ -93,10 +92,9 @@ private:
   void OnFilterAdded(Filter::Ptr filter);
   void OnFilterRemoved(Filter::Ptr filter);
   void OnViewTypeChanged(ViewType view_type);
-  void QueueFixRenderering();
-  bool FixRenderering();
   bool ReinitializeFilterModels();
   ResultViewGrid* GetGridForCategory(unsigned category_index);
+  ResultView* GetResultViewForCategory(unsigned category_index);
 
   void BuildPreview(std::string const& uri, Preview::Ptr model);
 
@@ -126,7 +124,6 @@ private:
   nux::StaticCairoText* no_results_;
 
   UBusManager ubus_manager_;
-  glib::Source::UniquePtr fix_rendering_idle_;
   glib::Source::UniquePtr model_updated_timeout_;
   int last_good_filter_model_;
   glib::Source::UniquePtr fix_filter_models_idle_;

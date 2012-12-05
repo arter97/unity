@@ -59,11 +59,9 @@ const std::string SHOW_FILTERS_LABEL_DEFAULT_FONT = "Ubuntu " + SHOW_FILTERS_LAB
 
 }
 
+DECLARE_LOGGER(logger, "unity.dash.searchbar");
 namespace
 {
-
-nux::logging::Logger logger("unity");
-
 class ExpanderView : public nux::View
 {
 public:
@@ -217,7 +215,7 @@ void SearchBar::Init()
     expander_view_ = new ExpanderView(NUX_TRACKER_LOCATION);
     expander_view_->SetVisible(false);
     expander_view_->SetLayout(filter_layout_);
-    layout_->AddView(expander_view_, 0, nux::MINOR_POSITION_RIGHT, nux::MINOR_SIZE_FULL);
+    layout_->AddView(expander_view_, 0, nux::MINOR_POSITION_END, nux::MINOR_SIZE_FULL);
 
     int width = style.GetFilterBarWidth() +
                 style.GetFilterResultsHighlightLeftPadding() +
@@ -370,7 +368,7 @@ void SearchBar::Draw(nux::GraphicsEngine& graphics_engine, bool force_draw)
     // This is necessary when doing redirected rendering.
     // Clean the area below this view before drawing anything.
     graphics_engine.GetRenderStates().SetBlend(false);
-    graphics_engine.QRP_Color(base.x, base.y, last_width_, last_height_, nux::Color(0.0f, 0.0f, 0.0f, 0.0f));
+    graphics_engine.QRP_Color(base.x, base.y, base.width, base.height, nux::Color(0.0f, 0.0f, 0.0f, 0.0f));
     graphics_engine.GetRenderStates().SetBlend(alpha, src, dest);
   }
 
@@ -391,38 +389,10 @@ void SearchBar::Draw(nux::GraphicsEngine& graphics_engine, bool force_draw)
     if (!highlight_layer_)
       highlight_layer_.reset(style.FocusOverlay(geo.width, geo.height));
 
-    if (RedirectedAncestor())
-    {
-      unsigned int alpha = 0, src = 0, dest = 0;
-      graphics_engine.GetRenderStates().GetBlend(alpha, src, dest);
-      // This is necessary when doing redirected rendering.
-      // Clean the area below this view before drawing anything.
-      graphics_engine.GetRenderStates().SetBlend(false);
-      graphics_engine.QRP_Color(geo.x, geo.y, geo.width, geo.height, nux::Color(0.0f, 0.0f, 0.0f, 0.0f));
-      graphics_engine.GetRenderStates().SetBlend(alpha, src, dest);
-    }
-
     highlight_layer_->SetGeometry(geo);
     highlight_layer_->Renderlayer(graphics_engine);
   }
-  else if (expander_view_ && expander_view_->IsVisible())
-  {
-    nux::Geometry geo(expander_view_->GetGeometry());
 
-    geo.y -= (HIGHLIGHT_HEIGHT- geo.height) / 2;
-    geo.height = HIGHLIGHT_HEIGHT;
-
-    if (RedirectedAncestor())
-    {
-      unsigned int alpha = 0, src = 0, dest = 0;
-      graphics_engine.GetRenderStates().GetBlend(alpha, src, dest);
-      // This is necessary when doing redirected rendering.
-      // Clean the area below this view before drawing anything.
-      graphics_engine.GetRenderStates().SetBlend(false);
-      graphics_engine.QRP_Color(geo.x, geo.y, geo.width, geo.height, nux::Color(0.0f, 0.0f, 0.0f, 0.0f));
-      graphics_engine.GetRenderStates().SetBlend(alpha, src, dest);
-    }
-  }
   graphics_engine.PopClippingRectangle();
 }
 

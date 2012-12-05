@@ -8,8 +8,8 @@ dash/LensView.cpp
 dash/PlacesGroup.cpp
 hud/HudController.cpp
 hud/HudView.cpp
+launcher/ApplicationLauncherIcon.cpp
 launcher/BFBLauncherIcon.cpp
-launcher/BamfLauncherIcon.cpp
 launcher/DesktopLauncherIcon.cpp
 launcher/DeviceNotificationDisplayImp.cpp
 launcher/ExpoLauncherIcon.cpp
@@ -31,6 +31,7 @@ plugins/unityshell/src/unityshell.cpp
 plugins/unityshell/unityshell.xml.in
 shortcuts/ShortcutHintPrivate.cpp
 shortcuts/ShortcutView.cpp
+services/panel-service.c
 unity-shared/DashStyle.cpp
 unity-shared/SearchBar.cpp
 gnome/50-unity-launchers.xml.in

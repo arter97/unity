@@ -8,6 +8,7 @@
 
 from __future__ import absolute_import
 
+from testtools import skip
 from time import sleep
 
 from unity.tests import UnityTestCase
@@ -18,7 +19,7 @@ class ShowDesktopTests(UnityTestCase):
 
     def setUp(self):
         super(ShowDesktopTests, self).setUp()
-        self.set_unity_log_level("unity.plugin", "DEBUG")
+        self.set_unity_log_level("unity.wm.compiz", "DEBUG")
         # we need this to let the unity models update after we shutdown apps
         # before we start the next test.
         sleep(2)
@@ -88,6 +89,7 @@ class ShowDesktopTests(UnityTestCase):
         for win in (charmap, calc):
             self.assertProperty(win, is_hidden=False)
 
+    @skip("Breaks following tests due to SDM bug")
     def test_showdesktop_switcher(self):
         """Show desktop item in switcher should hide all hidden apps."""
         test_windows = self.launch_test_apps()

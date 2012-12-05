@@ -19,16 +19,6 @@
  */
 
 #include "Nux/Nux.h"
-#include "Nux/Button.h"
-#include "Nux/VLayout.h"
-#include "Nux/HLayout.h"
-#include "Nux/WindowThread.h"
-#include "Nux/CheckBox.h"
-#include "Nux/SpinBox.h"
-#include "Nux/EditTextBox.h"
-#include "Nux/StaticText.h"
-#include "Nux/RangeValueInteger.h"
-#include "NuxGraphics/GraphicsEngine.h"
 #include <gtk/gtk.h>
 
 #include "unity-shared/BackgroundEffectHelper.h"
@@ -45,8 +35,8 @@ static launcher::Controller::Ptr controller;
 
 void ThreadWidgetInit(nux::NThread* thread, void* InitData)
 {
-//  launcherWindow->SetGeometry (nux::Geometry(0, 0, 300, 800));
-  controller.reset(new launcher::Controller());
+  auto xdnd_manager = std::make_shared<XdndManager>();
+  controller = std::make_shared<launcher::Controller>(xdnd_manager);
 }
 
 int main(int argc, char** argv)

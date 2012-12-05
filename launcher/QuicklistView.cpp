@@ -42,7 +42,7 @@
 #include "unity-shared/Introspectable.h"
 #include "unity-shared/UnitySettings.h"
 
-#include "unity-shared/ubus-server.h"
+#include "unity-shared/UBusWrapper.h"
 #include "unity-shared/UBusMessages.h"
 #include "unity-shared/DashStyle.h"
 
@@ -103,7 +103,7 @@ QuicklistView::QuicklistView()
 
   _hlayout = new nux::HLayout(TEXT(""), NUX_TRACKER_LOCATION);
   _hlayout->AddLayout(_left_space, 0);
-  _hlayout->AddLayout(_vlayout, 0, nux::eCenter, nux::eFull);
+  _hlayout->AddLayout(_vlayout, 0, nux::MINOR_POSITION_CENTER, nux::MINOR_SIZE_FULL);
   _hlayout->AddLayout(_right_space, 0);
 
   SetWindowSizeMatchLayout(true);
@@ -286,9 +286,7 @@ QuicklistView::RecvKeyPressed(unsigned long    eventType,
     case NUX_VK_ESCAPE:
       Hide();
       // inform UnityScreen we leave key-nav completely
-      ubus_server_send_message(ubus_server_get_default(),
-                               UBUS_LAUNCHER_END_KEY_NAV,
-                               NULL);
+      UBusManager::SendMessage(UBUS_LAUNCHER_END_KEY_NAV);
       break;
 
       // <SPACE>, <RETURN> (activate selected menu-item)
@@ -407,9 +405,7 @@ void QuicklistView::HideAndEndQuicklistNav()
 {
   Hide();
   // inform Launcher we switch back to Launcher key-nav
-  ubus_server_send_message(ubus_server_get_default(),
-                            UBUS_QUICKLIST_END_KEY_NAV,
-                            NULL);
+  UBusManager::SendMessage(UBUS_QUICKLIST_END_KEY_NAV);
 }
 
 void QuicklistView::Draw(nux::GraphicsEngine& gfxContext, bool forceDraw)
@@ -449,7 +445,7 @@ void QuicklistView::PreLayoutManagement()
     }
     else if (!item->GetParentObject())
     {
-      _item_layout->AddView(item, 1, nux::eCenter, nux::eFull);
+      _item_layout->AddView(item, 1, nux::MINOR_POSITION_CENTER, nux::MINOR_SIZE_FULL);
     }
 
     nux::Size const& text_extents = item->GetTextExtents();

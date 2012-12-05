@@ -5,10 +5,7 @@ find_package (PkgConfig)
 set (CFLAGS
      ${CACHED_UNITY_DEPS_CFLAGS}
      ${CACHED_UNITY_DEPS_CFLAGS_OTHER}
-     ${MAINTAINER_CFLAGS}
      "-fPIC"
-     "-DGETTEXT_PACKAGE=\"unity\""
-     "-I${CMAKE_CURRENT_BINARY_DIR}"
      )
 
 if (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64" OR ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "armv7l")
@@ -24,24 +21,22 @@ link_libraries (${LIBS})
 set (LIB_PATHS ${CACHED_UNITY_DEPS_LIBRARY_DIRS})
 link_directories (${CMAKE_BINARY_DIR}/UnityCore ${LIB_PATHS})
 
-include_directories (. .. ../services ../UnityCore ${UNITY_SRC} ${CMAKE_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+include_directories (.. ../services ../UnityCore ${UNITY_SRC} ${CMAKE_BINARY_DIR})
 
 #
 # Headers & Sources
 #
 set (LAUNCHER_SOURCES
      AbstractLauncherIcon.cpp
+     ApplicationLauncherIcon.cpp
      BFBLauncherIcon.cpp
-     BamfLauncherIcon.cpp
      CairoBaseWindow.cpp
-     DNDCollectionWindow.cpp
      Decaymulator.cpp
      DesktopLauncherIcon.cpp
      DeviceLauncherSection.cpp
      DeviceNotificationDisplayImp.cpp
      DevicesSettingsImp.cpp
      DndData.cpp
-     EdgeBarrierController.cpp
      ExpoLauncherIcon.cpp
      FavoriteStore.cpp
      FavoriteStoreGSettings.cpp
@@ -59,7 +54,6 @@ set (LAUNCHER_SOURCES
      LauncherModel.cpp
      LauncherOptions.cpp
      MockLauncherIcon.cpp
-     PointerBarrier.cpp
      QuicklistManager.cpp
      QuicklistMenuItem.cpp
      QuicklistMenuItemCheckmark.cpp
@@ -76,7 +70,19 @@ set (LAUNCHER_SOURCES
      VolumeImp.cpp
      VolumeLauncherIcon.cpp
      VolumeMonitorWrapper.cpp
+     XdndCollectionWindowImp.cpp
+     XdndManagerImp.cpp
+     XdndStartStopNotifier.cpp
+     XdndStartStopNotifierImp.cpp
      )
+
+if (ENABLE_X_SUPPORT)
+  set (LAUNCHER_SOURCES
+    EdgeBarrierController.cpp
+    PointerBarrier.cpp
+    ${LAUNCHER_SOURCES}
+    )
+endif ()
 
 add_library (launcher-lib STATIC ${LAUNCHER_SOURCES})
 add_dependencies (launcher-lib unity-core-${UNITY_API_VERSION} unity-shared)
@@ -86,19 +92,24 @@ set (SWITCHER_SOURCES
       SwitcherController.cpp
       SwitcherModel.cpp
       SwitcherView.cpp
-      LayoutSystem.cpp
     )
 
 add_library (switcher-lib STATIC ${SWITCHER_SOURCES})
 add_dependencies (switcher-lib unity-core-${UNITY_API_VERSION} unity-shared)
 
+set (LAUNCHER_LIBS
+    launcher-lib
+    unity-shared
+    unity-shared-bamf
+    unity-shared-standalone)
+
 #
 # Standalone variant
 #
 add_executable (launcher StandaloneLauncher.cpp)
-add_dependencies (launcher launcher-lib)
-target_link_libraries (launcher launcher-lib unity-shared)
+target_link_libraries (launcher ${LAUNCHER_LIBS})
 
-add_executable (switcher StandaloneSwitcher.cpp)
-add_dependencies (switcher switcher-lib launcher-lib)
-target_link_libraries (switcher switcher-lib launcher-lib unity-shared)
+if (ENABLE_X_SUPPORT)
+  add_executable (switcher StandaloneSwitcher.cpp)
+  target_link_libraries (switcher switcher-lib ${LAUNCHER_LIBS})
+endif ()

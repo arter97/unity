@@ -33,11 +33,14 @@
 #include "PanelStyle.h"
 #include "UnitySettings.h"
 #include "UBusMessages.h"
+#include "logger_helper.h"
 #include "test_utils.h"
 #include "test_uscreen_mock.h"
 #include "test_mock_devices.h"
-#include "bamf-mock-application.h"
+#include "mock-application.h"
 
+
+using namespace testmocks;
 using namespace unity::launcher;
 using namespace testing;
 
@@ -127,45 +130,45 @@ private:
   FavoriteList fav_list_;
 };
 
-struct MockBamfLauncherIcon : public BamfLauncherIcon
+struct MockApplicationLauncherIcon : public ApplicationLauncherIcon
 {
-  typedef nux::ObjectPtr<MockBamfLauncherIcon> Ptr;
+  typedef nux::ObjectPtr<MockApplicationLauncherIcon> Ptr;
   typedef bool Fake;
 
-  MockBamfLauncherIcon(Fake = true, std::string const& remote_uri = "")
-    : BamfLauncherIcon(BAMF_APPLICATION(bamf_mock_application_new()))
+  MockApplicationLauncherIcon(Fake = true, std::string const& remote_uri = "")
+    : ApplicationLauncherIcon(std::make_shared<MockApplication>(""))
     , remote_uri_(remote_uri)
   {
     InitMock();
     SetQuirk(Quirk::VISIBLE, true);
   }
 
-  explicit MockBamfLauncherIcon(BamfApplication* app)
-    : BamfLauncherIcon(app)
+  explicit MockApplicationLauncherIcon(ApplicationPtr const& app)
+    : ApplicationLauncherIcon(app)
   {
     InitMock();
   }
 
-  MockBamfLauncherIcon(std::string const& desktop_file)
-    : BamfLauncherIcon(bamf_matcher_get_application_for_desktop_file(bamf_matcher_get_default(), desktop_file.c_str(), TRUE))
+  MockApplicationLauncherIcon(std::string const& desktop_file)
+    : ApplicationLauncherIcon(std::make_shared<MockApplication>(desktop_file))
   {
     InitMock();
   }
 
   void InitMock()
   {
-    ON_CALL(*this, Stick(_)).WillByDefault(Invoke(this, &MockBamfLauncherIcon::ReallyStick));
+    ON_CALL(*this, Stick(_)).WillByDefault(Invoke(this, &MockApplicationLauncherIcon::ReallyStick));
   }
 
   std::string GetRemoteUri()
   {
     if (remote_uri_.empty())
-      return BamfLauncherIcon::GetRemoteUri();
+      return ApplicationLauncherIcon::GetRemoteUri();
     else
       return FavoriteStore::URI_PREFIX_APP + remote_uri_;
   }
 
-  void ReallyStick(bool save) { BamfLauncherIcon::Stick(save); }
+  void ReallyStick(bool save) { ApplicationLauncherIcon::Stick(save); }
 
   MOCK_METHOD1(Stick, void(bool));
   MOCK_METHOD0(UnStick, void());
@@ -179,8 +182,8 @@ struct MockVolumeLauncherIcon : public VolumeLauncherIcon
   typedef nux::ObjectPtr<MockVolumeLauncherIcon> Ptr;
 
   MockVolumeLauncherIcon()
-    : VolumeLauncherIcon(Volume::Ptr(volume_ = new MockVolume()),
-                         std::make_shared<MockDevicesSettings>())
+    : VolumeLauncherIcon(Volume::Ptr(volume_ = new NiceMock<MockVolume>()),
+                         std::make_shared<NiceMock<MockDevicesSettings>>())
     , uuid_(std::to_string(g_random_int()))
   {
     ON_CALL(*volume_, GetIdentifier()).WillByDefault(Return(uuid_));
@@ -200,8 +203,15 @@ namespace launcher
 {
 struct TestLauncherController : public testing::Test
 {
+  TestLauncherController()
+    : logger_output_(std::make_shared<helper::CaptureLogOutput>())
+    , xdnd_manager_(std::make_shared<XdndManager>())
+    , lc(xdnd_manager_)
+  {}
+
   virtual void SetUp()
   {
+    logger_output_->GetOutput(); // discard old output.
     lc.multiple_launchers = true;
   }
 
@@ -216,13 +226,17 @@ struct TestLauncherController : public testing::Test
 protected:
   struct MockLauncherController : Controller
   {
+    MockLauncherController(XdndManager::Ptr const& xdnd_manager)
+      : Controller(xdnd_manager)
+    {}
+
     Controller::Impl* Impl() const { return pimpl.get(); }
 
     AbstractLauncherIcon::Ptr GetIconByDesktop(std::string const& path) const
     {
       auto const& model = Impl()->model_;
       auto icon = std::find_if(model->begin(), model->end(),
-       [&path](AbstractLauncherIcon::Ptr const& i) { return ( i->DesktopFile() == path); });
+       [&path](AbstractLauncherIcon::Ptr const& i) { return (i->DesktopFile() == path); });
 
       if (icon != model->end())
         return *icon;
@@ -246,7 +260,7 @@ protected:
 
     void DisconnectSignals()
     {
-      Impl()->view_opened_signal_.Disconnect();
+      // Impl()->view_opened_signal_.Disconnect();
       Impl()->device_section_.icon_added.clear();
       Impl()->model_->icon_removed.clear();
       Impl()->model_->saved.clear();
@@ -254,10 +268,12 @@ protected:
     }
   };
 
+  std::shared_ptr<helper::CaptureLogOutput> logger_output_;
   MockUScreen uscreen;
   Settings settings;
   panel::Style panel_style;
   MockFavoriteStore favorite_store;
+  XdndManager::Ptr xdnd_manager_;
   MockLauncherController lc;
 };
 }
@@ -269,7 +285,6 @@ TEST_F(TestLauncherController, Construction)
   ASSERT_EQ(lc.launchers().size(), 1);
   EXPECT_EQ(lc.launcher().monitor(), 0);
   ASSERT_EQ(lc.Impl()->parent_, &lc);
-  ASSERT_TRUE(lc.Impl()->matcher_.IsType(BAMF_TYPE_MATCHER));
   ASSERT_NE(lc.Impl()->model_, nullptr);
   EXPECT_EQ(lc.Impl()->expo_icon_->GetIconType(), AbstractLauncherIcon::IconType::EXPO);
   EXPECT_EQ(lc.Impl()->desktop_icon_->GetIconType(), AbstractLauncherIcon::IconType::DESKTOP);
@@ -286,13 +301,19 @@ TEST_F(TestLauncherController, Construction)
 
   for (auto const& fav_uri : favorite_store.GetFavorites())
   {
-    auto const& model_icon_it = std::find_if(lc.Impl()->model_->begin(), lc.Impl()->model_->end(),
-    [&fav_uri](AbstractLauncherIcon::Ptr const& i) { return (i->RemoteUri() == fav_uri); });
+    auto model_icon_it = std::find_if(lc.Impl()->model_->begin(), lc.Impl()->model_->end(),
+      [&fav_uri](AbstractLauncherIcon::Ptr const& i) { return (i->RemoteUri() == fav_uri); });
+    bool valid_iter = (model_icon_it != lc.Impl()->model_->end());
 
     if (fav_uri == places::APPS_URI || fav_uri == places::DEVICES_URI)
-      ASSERT_FALSE((*model_icon_it).IsValid());
+    {
+      ASSERT_FALSE(valid_iter);
+    }
     else
-      ASSERT_TRUE((*model_icon_it).IsValid());
+    {
+      ASSERT_TRUE(valid_iter);
+      ASSERT_TRUE(model_icon_it->IsValid());
+    }
   }
 }
 
@@ -379,6 +400,8 @@ TEST_F(TestLauncherController, SingleMonitorSwitchToMultimonitor)
   EXPECT_EQ(lc.launchers().size(), max_num_monitors);
 }
 
+#ifdef USE_X11
+
 TEST_F(TestLauncherController, MultiMonitorEdgeBarrierSubscriptions)
 {
   uscreen.SetupFakeMultiMonitor();
@@ -410,10 +433,12 @@ TEST_F(TestLauncherController, SingleMonitorEdgeBarrierSubscriptionsUpdates)
   }
 }
 
+#endif
+
 TEST_F(TestLauncherController, OnlyUnstickIconOnFavoriteRemoval)
 {
   const std::string desktop = app::BZR_HANDLE_PATCH;
-  MockBamfLauncherIcon::Ptr bamf_icon(new MockBamfLauncherIcon(desktop));
+  MockApplicationLauncherIcon::Ptr bamf_icon(new MockApplicationLauncherIcon(desktop));
   lc.Impl()->model_->AddIcon(bamf_icon);
 
   EXPECT_CALL(*bamf_icon, UnStick());
@@ -500,13 +525,13 @@ TEST_F(TestLauncherController, CreateFavoriteDesktopFile)
   EXPECT_EQ(fav->DesktopFile(), desktop_file);
   EXPECT_EQ(fav->RemoteUri(), icon_uri);
   EXPECT_TRUE(fav->IsSticky());
-  EXPECT_NE(dynamic_cast<BamfLauncherIcon*>(fav.GetPointer()), nullptr);
+  EXPECT_NE(dynamic_cast<ApplicationLauncherIcon*>(fav.GetPointer()), nullptr);
 }
 
 TEST_F(TestLauncherController, CreateFavoriteInvalidDesktopFile)
 {
   // This desktop file has already been added as favorite, so it is invalid
-  std::string desktop_file = *(favorite_store.GetFavorites().begin());
+  std::string desktop_file = app::UBUNTU_ONE;
   std::string icon_uri = FavoriteStore::URI_PREFIX_APP + desktop_file;
   auto const& fav = lc.Impl()->CreateFavoriteIcon(icon_uri);
 
@@ -635,7 +660,7 @@ TEST_F(TestLauncherController, RegisterIconDevice)
 
 TEST_F(TestLauncherController, RegisteredIconSavesPosition)
 {
-  MockBamfLauncherIcon::Ptr app_icon(new MockBamfLauncherIcon(true, "normal-icon.desktop"));
+  MockApplicationLauncherIcon::Ptr app_icon(new NiceMock<MockApplicationLauncherIcon>(true, "normal-icon.desktop"));
   lc.Impl()->RegisterIcon(app_icon);
   ASSERT_FALSE(favorite_store.IsFavorite(app_icon->RemoteUri()));
 
@@ -699,20 +724,15 @@ TEST_F(TestLauncherController, AddRunningApps)
   lc.DisconnectSignals();
   lc.Impl()->AddRunningApps();
 
-  std::shared_ptr<GList> apps(bamf_matcher_get_applications(lc.Impl()->matcher_), g_list_free);
-
-  for (GList *l = apps.get(); l; l = l->next)
+  // This test should be rewritten to not use the default application manager.
+  for (auto& app : ApplicationManager::Default().GetRunningApplications())
   {
-    if (!BAMF_IS_APPLICATION(l->data))
+    if (app->sticky())
       continue;
 
-    BamfApplication* app = BAMF_APPLICATION(l->data);
+    ASSERT_TRUE(app->seen());
 
-    ASSERT_NE(g_object_get_qdata(G_OBJECT(app), g_quark_from_static_string("unity-seen")), nullptr);
-
-    auto desktop = bamf_application_get_desktop_file(app);
-    std::string path(desktop ? desktop : "");
-
+    auto path = app->desktop_file();
     if (path.empty())
       continue;
 
@@ -750,7 +770,6 @@ TEST_F(TestLauncherController, SetupIcons)
                                 FavoriteStore::URI_PREFIX_APP + app::SW_CENTER,
                                 places::DEVICES_URI,
                                 FavoriteStore::URI_PREFIX_APP + app::UPDATE_MANAGER });
-  std::shared_ptr<GList> apps(bamf_matcher_get_applications(lc.Impl()->matcher_), g_list_free);
   lc.Impl()->SetupIcons();
   lc.DisconnectSignals();
 
@@ -766,23 +785,19 @@ TEST_F(TestLauncherController, SetupIcons)
   fav = lc.Impl()->GetIconByUri(FavoriteStore::URI_PREFIX_APP + app::UPDATE_MANAGER);
   EXPECT_EQ(model->IconIndex(fav), ++icon_index);
 
-
-  for (GList *l = apps.get(); l; l = l->next)
+  for (auto& app : ApplicationManager::Default().GetRunningApplications())
   {
-    if (!BAMF_IS_APPLICATION(l->data))
+    if (app->sticky())
       continue;
 
-    auto desktop = bamf_application_get_desktop_file(BAMF_APPLICATION(l->data));
-    std::string path(desktop ? desktop : "");
-    ++icon_index;
+    ASSERT_TRUE(app->seen());
 
+    auto path = app->desktop_file();
     if (path.empty())
       continue;
 
-    auto const& icon = lc.GetIconByDesktop(path);
-
-    ASSERT_TRUE(icon.IsValid());
-    ASSERT_EQ(model->IconIndex(icon), icon_index);
+    auto icon = lc.GetIconByDesktop(path);
+    ASSERT_EQ(model->IconIndex(icon), ++icon_index);
   }
 
   ASSERT_EQ(model->IconIndex(lc.Impl()->expo_icon_), ++icon_index);
@@ -796,7 +811,6 @@ TEST_F(TestLauncherController, ResetIconPriorities)
 
   favorite_store.AddFavorite(places::APPS_URI, -1);
   favorite_store.AddFavorite(places::DEVICES_URI, -1);
-  std::shared_ptr<GList> apps(bamf_matcher_get_applications(lc.Impl()->matcher_), g_list_free);
   lc.Impl()->SetupIcons();
   lc.DisconnectSignals();
 
@@ -815,22 +829,19 @@ TEST_F(TestLauncherController, ResetIconPriorities)
   auto fav = lc.Impl()->GetIconByUri(FavoriteStore::URI_PREFIX_APP + app::SW_CENTER);
   EXPECT_EQ(model->IconIndex(fav), ++icon_index);
 
-  for (GList *l = apps.get(); l; l = l->next)
+  for (auto& app : ApplicationManager::Default().GetRunningApplications())
   {
-    if (!BAMF_IS_APPLICATION(l->data))
+    if (app->sticky())
       continue;
 
-    auto desktop = bamf_application_get_desktop_file(BAMF_APPLICATION(l->data));
-    std::string path(desktop ? desktop : "");
-    ++icon_index;
+    ASSERT_TRUE(app->seen());
 
+    auto path = app->desktop_file();
     if (path.empty())
       continue;
 
-    auto const& icon = lc.GetIconByDesktop(path);
-
-    ASSERT_TRUE(icon.IsValid());
-    ASSERT_EQ(model->IconIndex(icon), icon_index);
+    auto icon = lc.GetIconByDesktop(path);
+    ASSERT_EQ(model->IconIndex(icon), ++icon_index);
   }
 
   fav = lc.Impl()->GetIconByUri(FavoriteStore::URI_PREFIX_APP + app::UBUNTU_ONE);
@@ -1003,7 +1014,7 @@ TEST_F(TestLauncherController, LauncherAddRequestApplicationAdd)
   std::string icon_uri = FavoriteStore::URI_PREFIX_APP + desktop;
   ASSERT_FALSE(lc.Impl()->GetIconByUri(icon_uri).IsValid());
 
-  auto app_icons = model->GetSublist<BamfLauncherIcon>();
+  auto app_icons = model->GetSublist<ApplicationLauncherIcon>();
   auto const& second_app = *(std::next(app_icons.begin()));
 
   lc.launcher().add_request.emit(icon_uri, second_app);
@@ -1019,10 +1030,10 @@ TEST_F(TestLauncherController, LauncherAddRequestApplicationStick)
   std::string desktop = app::BZR_HANDLE_PATCH;
   std::string icon_uri = FavoriteStore::URI_PREFIX_FILE + desktop;
 
-  MockBamfLauncherIcon::Ptr bamf_icon(new MockBamfLauncherIcon(desktop));
+  MockApplicationLauncherIcon::Ptr bamf_icon(new MockApplicationLauncherIcon(desktop));
   lc.Impl()->RegisterIcon(bamf_icon, std::numeric_limits<int>::max());
 
-  auto app_icons = model->GetSublist<BamfLauncherIcon>();
+  auto app_icons = model->GetSublist<ApplicationLauncherIcon>();
   auto const& first_app = *(app_icons.begin());
   ASSERT_LT(model->IconIndex(first_app), model->IconIndex(bamf_icon));
 
@@ -1042,7 +1053,7 @@ TEST_F(TestLauncherController, LauncherAddRequestDeviceAdd)
 
   ASSERT_FALSE(lc.Impl()->GetIconByUri(icon_uri).IsValid());
 
-  auto app_icons = model->GetSublist<BamfLauncherIcon>();
+  auto app_icons = model->GetSublist<ApplicationLauncherIcon>();
   auto const& first_app = *(app_icons.begin());
 
   lc.launcher().add_request.emit(icon_uri, first_app);
@@ -1056,10 +1067,10 @@ TEST_F(TestLauncherController, LauncherAddRequestDeviceAdd)
 TEST_F(TestLauncherController, LauncherAddRequestDeviceStick)
 {
   auto const& model = lc.Impl()->model_;
-  MockVolumeLauncherIcon::Ptr device_icon(new MockVolumeLauncherIcon());
+  MockVolumeLauncherIcon::Ptr device_icon(new NiceMock<MockVolumeLauncherIcon>());
   lc.Impl()->RegisterIcon(device_icon, std::numeric_limits<int>::max());
 
-  auto app_icons = model->GetSublist<BamfLauncherIcon>();
+  auto app_icons = model->GetSublist<ApplicationLauncherIcon>();
   auto const& second_app = *(std::next(app_icons.begin()));
   ASSERT_LT(model->IconIndex(second_app), model->IconIndex(device_icon));
 
@@ -1071,7 +1082,7 @@ TEST_F(TestLauncherController, LauncherAddRequestDeviceStick)
 
 TEST_F(TestLauncherController, LauncherRemoveRequestApplicationUnStickAndQuit)
 {
-  MockBamfLauncherIcon::Ptr bamf_icon(new MockBamfLauncherIcon());
+  MockApplicationLauncherIcon::Ptr bamf_icon(new MockApplicationLauncherIcon());
 
   EXPECT_CALL(*bamf_icon, UnStick());
   EXPECT_CALL(*bamf_icon, Quit());
@@ -1080,7 +1091,7 @@ TEST_F(TestLauncherController, LauncherRemoveRequestApplicationUnStickAndQuit)
 
 TEST_F(TestLauncherController, LauncherRemoveRequestDeviceEjects)
 {
-  MockVolumeLauncherIcon::Ptr device_icon(new MockVolumeLauncherIcon());
+  MockVolumeLauncherIcon::Ptr device_icon(new NiceMock<MockVolumeLauncherIcon>());
 
   EXPECT_CALL(*(device_icon->volume_), CanBeEjected())
       .WillRepeatedly(Return(true));
@@ -1095,7 +1106,7 @@ TEST_F(TestLauncherController, LauncherRemoveRequestDeviceEjects)
 
 TEST_F(TestLauncherController, LauncherRemoveRequestDeviceStops)
 {
-  MockVolumeLauncherIcon::Ptr device_icon(new MockVolumeLauncherIcon());
+  MockVolumeLauncherIcon::Ptr device_icon(new NiceMock<MockVolumeLauncherIcon>());
 
   EXPECT_CALL(*(device_icon->volume_), CanBeEjected())
       .WillRepeatedly(Return(false));
@@ -1126,7 +1137,7 @@ TEST_F(TestLauncherController, LauncherAddRequestSpecialIgnored)
   std::string desktop = app::BZR_HANDLE_PATCH;
   std::string icon_uri = FavoriteStore::URI_PREFIX_APP + desktop;
 
-  MockBamfLauncherIcon::Ptr bamf_icon(new MockBamfLauncherIcon(desktop));
+  MockApplicationLauncherIcon::Ptr bamf_icon(new MockApplicationLauncherIcon(desktop));
   lc.Impl()->RegisterIcon(bamf_icon, std::numeric_limits<int>::max());
   ASSERT_TRUE(lc.Impl()->GetIconByUri(icon_uri).IsValid());
 
@@ -1145,22 +1156,22 @@ TEST_F(TestLauncherController, SaveIconsOrder)
   lc.DisconnectSignals();
   int priority = 0;
 
-  MockBamfLauncherIcon::Ptr sticky_app(new MockBamfLauncherIcon(true, "sticky-app"));
+  MockApplicationLauncherIcon::Ptr sticky_app(new NiceMock<MockApplicationLauncherIcon>(true, "sticky-app"));
   sticky_app->Stick(false);
   lc.Impl()->RegisterIcon(sticky_app, ++priority);
 
-  MockBamfLauncherIcon::Ptr invisible_app(new MockBamfLauncherIcon(true, "invisible-app"));
+  MockApplicationLauncherIcon::Ptr invisible_app(new NiceMock<MockApplicationLauncherIcon>(true, "invisible-app"));
   invisible_app->SetQuirk(AbstractLauncherIcon::Quirk::VISIBLE, false);
   lc.Impl()->RegisterIcon(invisible_app, ++priority);
 
-  MockVolumeLauncherIcon::Ptr sticky_device(new MockVolumeLauncherIcon());
+  MockVolumeLauncherIcon::Ptr sticky_device(new NiceMock<MockVolumeLauncherIcon>());
   sticky_device->Stick(false);
   lc.Impl()->RegisterIcon(sticky_device, ++priority);
 
   MockVolumeLauncherIcon::Ptr device(new MockVolumeLauncherIcon());
   lc.Impl()->RegisterIcon(device, ++priority);
 
-  MockBamfLauncherIcon::Ptr running_app(new MockBamfLauncherIcon(true, "running-app"));
+  MockApplicationLauncherIcon::Ptr running_app(new MockApplicationLauncherIcon(true, "running-app"));
   lc.Impl()->RegisterIcon(running_app, ++priority);
 
   lc.Impl()->SaveIconsOrder();
@@ -1180,11 +1191,11 @@ TEST_F(TestLauncherController, SaveIconsOrderWithOnlyStickyIcons)
   lc.ClearModel();
   int priority = 0;
 
-  MockBamfLauncherIcon::Ptr sticky_app(new MockBamfLauncherIcon(true, "sticky-app"));
+  MockApplicationLauncherIcon::Ptr sticky_app(new NiceMock<MockApplicationLauncherIcon>(true, "sticky-app"));
   sticky_app->Stick(false);
   lc.Impl()->RegisterIcon(sticky_app, ++priority);
 
-  MockVolumeLauncherIcon::Ptr sticky_device(new MockVolumeLauncherIcon());
+  MockVolumeLauncherIcon::Ptr sticky_device(new NiceMock<MockVolumeLauncherIcon>());
   sticky_device->Stick(false);
   lc.Impl()->RegisterIcon(sticky_device, ++priority);
 
@@ -1209,11 +1220,11 @@ TEST_F(TestLauncherController, SaveIconsOrderTriesToKeepIconProvidersOrder)
                                FavoriteStore::URI_PREFIX_APP + "bar.desktop", places::APPS_URI,
                                FavoriteStore::URI_PREFIX_APP + "foobar.desktop"});
 
-  MockBamfLauncherIcon::Ptr sticky_app(new MockBamfLauncherIcon(true, "sticky-app"));
+  MockApplicationLauncherIcon::Ptr sticky_app(new NiceMock<MockApplicationLauncherIcon>(true, "sticky-app"));
   sticky_app->Stick(false);
   lc.Impl()->RegisterIcon(sticky_app, ++priority);
 
-  MockVolumeLauncherIcon::Ptr sticky_device(new MockVolumeLauncherIcon());
+  MockVolumeLauncherIcon::Ptr sticky_device(new NiceMock<MockVolumeLauncherIcon>());
   sticky_device->Stick(false);
   lc.Impl()->RegisterIcon(sticky_device, ++priority);
 
@@ -1234,11 +1245,11 @@ TEST_F(TestLauncherController, SaveIconsOrderTriesToKeepIconProvidersOrder2)
   lc.ClearModel();
   int priority = 0;
 
-  MockBamfLauncherIcon::Ptr sticky_app(new MockBamfLauncherIcon(true, "sticky-app"));
+  MockApplicationLauncherIcon::Ptr sticky_app(new NiceMock<MockApplicationLauncherIcon>(true, "sticky-app"));
   sticky_app->Stick(false);
   lc.Impl()->RegisterIcon(sticky_app, ++priority);
 
-  MockVolumeLauncherIcon::Ptr sticky_device(new MockVolumeLauncherIcon());
+  MockVolumeLauncherIcon::Ptr sticky_device(new NiceMock<MockVolumeLauncherIcon>());
   sticky_device->Stick(false);
   lc.Impl()->RegisterIcon(sticky_device, ++priority);
 
@@ -1263,7 +1274,7 @@ TEST_F(TestLauncherController, SortAndUpdate)
 
   for (int i = 0; i < 15; ++i)
   {
-    MockBamfLauncherIcon::Ptr app(new MockBamfLauncherIcon());
+    MockApplicationLauncherIcon::Ptr app(new MockApplicationLauncherIcon());
     app->SetQuirk(AbstractLauncherIcon::Quirk::VISIBLE, (i % 5) != 0);
     lc.Impl()->RegisterIcon(app, 0);
   }
@@ -1300,7 +1311,7 @@ TEST_F(TestLauncherController, OnFavoriteStoreFavoriteAddedNewBeforeIcon)
   std::string icon_uri = FavoriteStore::URI_PREFIX_APP + app::BZR_HANDLE_PATCH;
   auto const& model = lc.Impl()->model_;
 
-  auto app_icons = model->GetSublist<BamfLauncherIcon>();
+  auto app_icons = model->GetSublist<ApplicationLauncherIcon>();
   auto const& first_app = *(app_icons.begin());
   favorite_store.favorite_added.emit(icon_uri, first_app->RemoteUri(), true);
 
@@ -1316,7 +1327,7 @@ TEST_F(TestLauncherController, OnFavoriteStoreFavoriteAddedNewAfterIcon)
   std::string icon_uri = FavoriteStore::URI_PREFIX_APP + app::BZR_HANDLE_PATCH;
   auto const& model = lc.Impl()->model_;
 
-  auto app_icons = model->GetSublist<BamfLauncherIcon>();
+  auto app_icons = model->GetSublist<ApplicationLauncherIcon>();
   auto const& first_app = *(app_icons.begin());
   favorite_store.favorite_added.emit(icon_uri, first_app->RemoteUri(), false);
 
@@ -1332,7 +1343,7 @@ TEST_F(TestLauncherController, OnFavoriteStoreFavoriteAddedStick)
   std::string desktop = app::BZR_HANDLE_PATCH;
   std::string icon_uri = FavoriteStore::URI_PREFIX_APP + desktop;
 
-  MockBamfLauncherIcon::Ptr app_icon(new MockBamfLauncherIcon(desktop));
+  MockApplicationLauncherIcon::Ptr app_icon(new MockApplicationLauncherIcon(desktop));
   lc.Impl()->RegisterIcon(app_icon, std::numeric_limits<int>::max());
 
   EXPECT_CALL(*app_icon, Stick(false));
@@ -1346,10 +1357,10 @@ TEST_F(TestLauncherController, OnFavoriteStoreFavoriteAddedStickBefore)
   std::string desktop = app::BZR_HANDLE_PATCH;
   std::string icon_uri = FavoriteStore::URI_PREFIX_APP + desktop;
 
-  MockBamfLauncherIcon::Ptr app_icon(new MockBamfLauncherIcon(desktop));
+  MockApplicationLauncherIcon::Ptr app_icon(new MockApplicationLauncherIcon(desktop));
   lc.Impl()->RegisterIcon(app_icon, std::numeric_limits<int>::max());
 
-  auto app_icons = model->GetSublist<BamfLauncherIcon>();
+  auto app_icons = model->GetSublist<ApplicationLauncherIcon>();
   auto const& first_app = *(app_icons.begin());
   ASSERT_LT(model->IconIndex(first_app), model->IconIndex(app_icon));
 
@@ -1366,10 +1377,10 @@ TEST_F(TestLauncherController, OnFavoriteStoreFavoriteAddedStickAfter)
   std::string desktop = app::BZR_HANDLE_PATCH;
   std::string icon_uri = FavoriteStore::URI_PREFIX_APP + desktop;
 
-  MockBamfLauncherIcon::Ptr app_icon(new MockBamfLauncherIcon(desktop));
+  MockApplicationLauncherIcon::Ptr app_icon(new MockApplicationLauncherIcon(desktop));
   lc.Impl()->RegisterIcon(app_icon, std::numeric_limits<int>::max());
 
-  auto const& app_icons = model->GetSublist<BamfLauncherIcon>();
+  auto const& app_icons = model->GetSublist<ApplicationLauncherIcon>();
   auto const& first_app = *(app_icons.begin());
   ASSERT_LT(model->IconIndex(first_app), model->IconIndex(app_icon));
 
@@ -1394,7 +1405,7 @@ TEST_F(TestLauncherController, OnFavoriteStoreFavoriteAddedDeviceSection)
   lc.Impl()->SetupIcons();
   lc.DisconnectSignals();
 
-  auto const& app_icons = lc.Impl()->model_->GetSublist<BamfLauncherIcon>();
+  auto const& app_icons = lc.Impl()->model_->GetSublist<ApplicationLauncherIcon>();
   auto const& last_app = *(app_icons.rbegin());
 
   ASSERT_EQ(model->IconIndex(device_icon1), model->IconIndex(last_app) + 1);
@@ -1409,7 +1420,7 @@ TEST_F(TestLauncherController, OnFavoriteStoreFavoriteAddedDeviceSection)
 
 TEST_F(TestLauncherController, OnFavoriteStoreFavoriteRemovedApplication)
 {
-  MockBamfLauncherIcon::Ptr app_icon(new MockBamfLauncherIcon(true, "sticky-icon"));
+  MockApplicationLauncherIcon::Ptr app_icon(new NiceMock<MockApplicationLauncherIcon>(true, "sticky-icon"));
   lc.Impl()->RegisterIcon(app_icon);
   app_icon->Stick(false);
 
@@ -1438,7 +1449,7 @@ TEST_F(TestLauncherController, OnFavoriteStoreFavoriteRemovedDevice)
   favorite_store.RemoveFavorite(device_icon->RemoteUri());
   favorite_store.favorite_removed.emit(device_icon->RemoteUri());
 
-  auto const& app_icons = lc.Impl()->model_->GetSublist<BamfLauncherIcon>();
+  auto const& app_icons = lc.Impl()->model_->GetSublist<ApplicationLauncherIcon>();
   auto const& last_app = *(app_icons.rbegin());
   EXPECT_EQ(model->IconIndex(device_icon), model->IconIndex(last_app) + 1);
 }
@@ -1464,7 +1475,7 @@ TEST_F(TestLauncherController, OnFavoriteStoreFavoriteRemovedDeviceSection)
   favorite_store.RemoveFavorite(places::DEVICES_URI);
   favorite_store.favorite_removed.emit(places::DEVICES_URI);
 
-  auto const& app_icons = lc.Impl()->model_->GetSublist<BamfLauncherIcon>();
+  auto const& app_icons = lc.Impl()->model_->GetSublist<ApplicationLauncherIcon>();
   auto const& last_app = *(app_icons.rbegin());
   EXPECT_EQ(model->IconIndex(device_icon1), model->IconIndex(last_app) + 1);
   EXPECT_EQ(model->IconIndex(device_icon2), model->IconIndex(last_app) + 2);
@@ -1472,13 +1483,10 @@ TEST_F(TestLauncherController, OnFavoriteStoreFavoriteRemovedDeviceSection)
 
 TEST_F(TestLauncherController, OnViewOpened)
 {
-  auto const& app_icons = lc.Impl()->model_->GetSublist<BamfLauncherIcon>();
+  auto const& app_icons = lc.Impl()->model_->GetSublist<ApplicationLauncherIcon>();
   auto const& last_app = *(app_icons.rbegin());
 
-  auto app = bamf_matcher_get_application_for_desktop_file(lc.Impl()->matcher_, app::BZR_HANDLE_PATCH.c_str(), TRUE);
-  g_signal_emit_by_name(lc.Impl()->matcher_, "view-opened", app);
-  lc.DisconnectSignals();
-
+  testmocks::MockApplicationManager::StartApp(app::BZR_HANDLE_PATCH);
   auto const& icon = lc.GetIconByDesktop(app::BZR_HANDLE_PATCH);
   ASSERT_TRUE(icon.IsValid());
 
@@ -1511,7 +1519,9 @@ TEST_F(TestLauncherController, UpdateSelectionChanged)
 {
   UBusManager manager;
   std::string last_selection_change;
-  manager.RegisterInterest(UBUS_LAUNCHER_SELECTION_CHANGED, [&] (GVariant *data) { last_selection_change = g_variant_get_string(data, 0); });
+  manager.RegisterInterest(UBUS_LAUNCHER_SELECTION_CHANGED, [&] (GVariant *data) {
+    last_selection_change = g_variant_get_string(data, 0);
+  });
 
   lc.KeyNavGrab();
   ProcessUBusMessages();
@@ -1525,6 +1535,55 @@ TEST_F(TestLauncherController, UpdateSelectionChanged)
   lc.Impl()->model_->Selection()->CloseQuicklist();
   ProcessUBusMessages();
   ASSERT_EQ(lc.Impl()->model_->Selection()->tooltip_text(), last_selection_change);
+}
+
+// thumper: 2012-11-28 disabling the drag and drop tests as they are taking over 20s
+// each, and that is not acceptable for unit tests.  These sound more like functional
+// tests.
+TEST_F(TestLauncherController, DISABLED_DragAndDrop_MultipleLaunchers)
+{
+  lc.multiple_launchers = true;
+  uscreen.SetupFakeMultiMonitor();
+  lc.options()->hide_mode = LAUNCHER_HIDE_AUTOHIDE;
+
+  auto check_fn = [this](int index) {
+    return lc.launchers()[index]->Hidden();
+  };
+
+  xdnd_manager_->dnd_started.emit("my_awesome_file", 0);
+
+  for (int i = 0; i < max_num_monitors; ++i)
+    Utils::WaitUntil(std::bind(check_fn, i), i != 0);
+
+  xdnd_manager_->monitor_changed.emit(3);
+
+  for (int i = 0; i < max_num_monitors; ++i)
+    Utils::WaitUntil(std::bind(check_fn, i), i != 3);
+
+  xdnd_manager_->dnd_finished.emit();
+
+  for (int i = 0; i < max_num_monitors; ++i)
+    Utils::WaitUntil(std::bind(check_fn, i), true);
+}
+
+TEST_F(TestLauncherController, DISABLED_DragAndDrop_SingleLauncher)
+{
+  lc.multiple_launchers = false;
+  uscreen.SetupFakeMultiMonitor(2);
+  lc.options()->hide_mode = LAUNCHER_HIDE_AUTOHIDE;
+
+  auto check_fn = [this]() {
+    return lc.launcher().Hidden();
+  };
+
+  xdnd_manager_->dnd_started.emit("my_awesome_file", 0);
+  Utils::WaitUntil(check_fn, false);
+
+  xdnd_manager_->monitor_changed.emit(2);
+  Utils::WaitUntil(check_fn, false);
+
+  xdnd_manager_->dnd_finished.emit();
+  Utils::WaitUntil(check_fn, true);
 }
 
 }

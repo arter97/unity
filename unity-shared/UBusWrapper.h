@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Canonical Ltd
+ * Copyright (C) 2010-2012 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -14,6 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Authored by: Neil Jagdish Patel <neil.patel@canonical.com>
+ *              Michal Hruby <michal.hruby@canonical.com>
  */
 
 #ifndef UNITY_UBUS_WRAPPER_H
@@ -21,10 +22,12 @@
 
 #include <memory>
 #include <string>
-#include <vector>
-#include <boost/utility.hpp>
+#include <set>
 
-#include "ubus-server.h"
+#include <UnityCore/Variant.h>
+#include <UnityCore/GLibSource.h>
+
+#include "UBusServer.h"
 
 namespace unity
 {
@@ -32,29 +35,19 @@ namespace unity
 class UBusManager : public boost::noncopyable
 {
 public:
-  typedef std::function<void(GVariant*)> UBusManagerCallback;
-
   UBusManager();
   ~UBusManager();
 
-  void RegisterInterest(std::string const& interest_name, UBusManagerCallback slot);
-  void UnregisterInterest(std::string const& interest_name);
-  void SendMessage(std::string const& message_name, GVariant* args = NULL);
+  unsigned RegisterInterest(std::string const& interest_name,
+                            UBusCallback const& slot);
+  void UnregisterInterest(unsigned connection_id);
+  static void SendMessage(std::string const& message_name,
+                          glib::Variant const& args = glib::Variant(),
+                          glib::Source::Priority prio = glib::Source::Priority::DEFAULT);
 
 private:
-  struct UBusConnection
-  {
-    typedef std::shared_ptr<UBusConnection> Ptr;
-
-    std::string name;
-    UBusManagerCallback slot;
-    guint id;
-  };
-
-  static void OnCallback(GVariant* args, gpointer user_data);
-
-  UBusServer* server_;
-  std::vector<UBusConnection::Ptr> connections_;
+  static std::unique_ptr<UBusServer> server;
+  std::set<unsigned> connection_ids_;
 };
 
 }

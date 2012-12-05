@@ -83,7 +83,7 @@ public:
   bool OpenQuicklist(bool select_first_item = false, int monitor = -1);
   void CloseQuicklist();
 
-  void        SetCenter(nux::Point3 center, int parent_monitor, nux::Geometry parent_geo);
+  void SetCenter(nux::Point3 const& center, int parent_monitor, nux::Geometry const& parent_geo);
 
   nux::Point3 GetCenter(int monitor);
 
@@ -97,13 +97,11 @@ public:
 
   int SortPriority();
 
-  virtual std::vector<Window> Windows() { return std::vector<Window> (); }
+  virtual WindowList Windows() { return WindowList(); }
 
   virtual std::vector<Window> WindowsOnViewport() { return std::vector<Window> (); }
 
   virtual std::vector<Window> WindowsForMonitor(int monitor) { return std::vector<Window> (); }
-
-  virtual std::string NameForWindow(Window window) { return std::string(); }
 
   const bool WindowVisibleOnMonitor(int monitor);
 
@@ -252,7 +250,7 @@ protected:
 
   virtual void ActivateLauncherIcon(ActionArg arg) {}
 
-  virtual void OpenInstanceLauncherIcon(ActionArg arg) {}
+  virtual void OpenInstanceLauncherIcon() {}
 
   virtual bool HandlesSpread () { return false; }
 

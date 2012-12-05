@@ -1,5 +1,6 @@
+// -*- Mode: C++; indent-tabs-mode: nil; tab-width: 2 -*-
 /*
- * Copyright (C) 2010 Canonical Ltd
+ * Copyright (C) 2010-2012 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,23 +23,24 @@
 #include <Nux/HLayout.h>
 #include <UnityCore/GLibWrapper.h>
 
-#include "unity-shared/UnitySettings.h"
-#include "unity-shared/PanelStyle.h"
 #include "unity-shared/DashStyle.h"
-#include "unity-shared/PluginAdapter.h"
+#include "unity-shared/PanelStyle.h"
 #include "unity-shared/UBusMessages.h"
+#include "unity-shared/UnitySettings.h"
 #include "unity-shared/UScreen.h"
+#include "unity-shared/WindowManager.h"
+
 
 namespace unity
 {
 namespace dash
 {
+DECLARE_LOGGER(logger, "unity.dash.controller");
 
-const char window_title[] = "unity-dash";
+const char* window_title = "unity-dash";
 
 namespace
 {
-nux::logging::Logger logger("unity.dash.controller");
 const unsigned int PRELOAD_TIMEOUT_LENGTH = 40;
 
 const std::string DBUS_PATH = "/com/canonical/Unity/Dash";
@@ -81,7 +83,7 @@ Controller::Controller()
     {
       // Relayout here so the input window size updates.
       Relayout();
-      
+
       window_->PushToFront();
       window_->SetInputFocus();
       nux::GetWindowCompositor().SetKeyFocusArea(view_->default_focus());
@@ -89,7 +91,7 @@ Controller::Controller()
   });
 
   auto spread_cb = sigc::bind(sigc::mem_fun(this, &Controller::HideDash), true);
-  PluginAdapter::Default()->initiate_spread.connect(spread_cb);
+  WindowManager::Default().initiate_spread.connect(spread_cb);
 
   g_bus_get (G_BUS_TYPE_SESSION, dbus_connect_cancellable_, OnBusAcquired, this);
 }
@@ -114,11 +116,11 @@ void Controller::SetupWindow()
   window_->mouse_down_outside_pointer_grab_area.connect(sigc::mem_fun(this, &Controller::OnMouseDownOutsideWindow));
 
   /* FIXME - first time we load our windows there is a race that causes the input window not to actually get input, this side steps that by causing an input window show and hide before we really need it. */
-  auto plugin_adapter = PluginAdapter::Default();
-  plugin_adapter->saveInputFocus ();
+  WindowManager& wm = WindowManager::Default();
+  wm.SaveInputFocus ();
   window_->EnableInputWindow(true, dash::window_title, true, false);
   window_->EnableInputWindow(false, dash::window_title, true, false);
-  plugin_adapter->restoreInputFocus ();
+  wm.RestoreInputFocus ();
 }
 
 void Controller::SetupDashView()
@@ -128,14 +130,14 @@ void Controller::SetupDashView()
 
   nux::HLayout* layout = new nux::HLayout(NUX_TRACKER_LOCATION);
   layout->AddView(view_, 1);
-  layout->SetContentDistribution(nux::eStackLeft);
+  layout->SetContentDistribution(nux::MAJOR_POSITION_START);
   layout->SetVerticalExternalMargin(0);
   layout->SetHorizontalExternalMargin(0);
   window_->SetLayout(layout);
 
   window_->UpdateInputWindowGeometry();
 
-  ubus_manager_.UnregisterInterest(UBUS_PLACE_ENTRY_ACTIVATE_REQUEST);
+  ubus_manager_.UnregisterInterest(place_entry_request_id_);
 }
 
 void Controller::RegisterUBusInterests()
@@ -144,8 +146,9 @@ void Controller::RegisterUBusInterests()
                                  sigc::mem_fun(this, &Controller::OnExternalShowDash));
   ubus_manager_.RegisterInterest(UBUS_PLACE_VIEW_CLOSE_REQUEST,
                                  sigc::mem_fun(this, &Controller::OnExternalHideDash));
-  ubus_manager_.RegisterInterest(UBUS_PLACE_ENTRY_ACTIVATE_REQUEST,
-                                 sigc::mem_fun(this, &Controller::OnActivateRequest));
+  place_entry_request_id_ =
+    ubus_manager_.RegisterInterest(UBUS_PLACE_ENTRY_ACTIVATE_REQUEST,
+                                   sigc::mem_fun(this, &Controller::OnActivateRequest));
   ubus_manager_.RegisterInterest(UBUS_DASH_ABOUT_TO_SHOW,
                                  [&] (GVariant*) { EnsureDash(); });
   ubus_manager_.RegisterInterest(UBUS_OVERLAY_SHOWN, [&] (GVariant *data)
@@ -228,7 +231,6 @@ void Controller::Relayout(bool check_monitor)
   if (check_monitor)
   {
     monitor_ = CLAMP(GetIdealMonitor(), 0, static_cast<int>(UScreen::GetDefault()->GetMonitors().size()-1));
-    printf("relayout on monitor:%d, monitor count:%d\n", monitor_, static_cast<int>(UScreen::GetDefault()->GetMonitors().size()));
   }
 
   nux::Geometry geo = GetIdealWindowGeometry();
@@ -277,18 +279,18 @@ void Controller::OnExternalHideDash(GVariant* variant)
 void Controller::ShowDash()
 {
   EnsureDash();
-  PluginAdapter* adaptor = PluginAdapter::Default();
+  WindowManager& wm = WindowManager::Default();
   // Don't want to show at the wrong time
-  if (visible_ || adaptor->IsExpoActive() || adaptor->IsScaleActive())
+  if (visible_ || wm.IsExpoActive() || wm.IsScaleActive())
     return;
 
   // We often need to wait for the mouse/keyboard to be available while a plugin
   // is finishing it's animations/cleaning up. In these cases, we patiently wait
   // for the screen to be available again before honouring the request.
-  if (adaptor->IsScreenGrabbed())
+  if (wm.IsScreenGrabbed())
   {
     screen_ungrabbed_slot_.disconnect();
-    screen_ungrabbed_slot_ = PluginAdapter::Default()->compiz_screen_ungrabbed.connect(sigc::mem_fun(this, &Controller::OnScreenUngrabbed));
+    screen_ungrabbed_slot_ = wm.screen_ungrabbed.connect(sigc::mem_fun(this, &Controller::OnScreenUngrabbed));
     need_show_ = true;
     return;
   }
@@ -338,7 +340,7 @@ void Controller::HideDash(bool restore)
   nux::GetWindowCompositor().SetKeyFocusArea(NULL,nux::KEY_NAV_NONE);
 
   if (restore)
-    PluginAdapter::Default ()->restoreInputFocus ();
+    WindowManager::Default().RestoreInputFocus();
 
   StartShowHideTimeline();
 
@@ -377,8 +379,9 @@ gboolean Controller::CheckShortcutActivation(const char* key_string)
   std::string lens_id = view_->GetIdForShortcutActivation(std::string(key_string));
   if (lens_id != "")
   {
-    if (PluginAdapter::Default()->IsScaleActive())
-      PluginAdapter::Default()->TerminateScale();
+    WindowManager& wm = WindowManager::Default();
+    if (wm.IsScaleActive())
+      wm.TerminateScale();
 
     GVariant* args = g_variant_new("(sus)", lens_id.c_str(), dash::GOTO_DASH_URI, "");
     OnActivateRequest(args);
@@ -440,7 +443,7 @@ void Controller::OnBusAcquired(GObject *obj, GAsyncResult *result, gpointer user
     {
       LOG_WARNING(logger) << "Object registration failed. Dash DBus interface not available.";
     }
-    
+
     g_dbus_node_info_unref(introspection_data);
   }
 }
