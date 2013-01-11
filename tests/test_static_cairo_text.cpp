@@ -30,20 +30,36 @@ using namespace unity;
 namespace
 {
 
-class MockStaticCairoText : public nux::StaticCairoText
+class MockStaticCairoText : public StaticCairoText
 {
 public:
+  MOCK_METHOD2(SetBaseSize, void(int, int));
+
   MockStaticCairoText():StaticCairoText("") {}
 
   using StaticCairoText::GetTextureStartIndices;
   using StaticCairoText::GetTextureEndIndices;
+  using StaticCairoText::PreLayoutManagement;
 };
 
-TEST(TestStaticCairoText, TextTextureSize)
+class TestStaticCairoText : public ::testing::Test
 {
+
+protected:
+  TestStaticCairoText() : Test()
+  {
+    text = new MockStaticCairoText();
+  }
+
+  nux::ObjectPtr<MockStaticCairoText> text;
+
+};
+
+TEST_F(TestStaticCairoText, TextTextureSize)
+{
+  EXPECT_CALL(*text.GetPointer(), SetBaseSize(_, _)).Times(AnyNumber());
   // Test multi-texture stitching support.
 
-  nux::ObjectPtr<MockStaticCairoText> text(new MockStaticCairoText());
   text->SetLines(-2000);
   text->SetMaximumWidth(100);
 
@@ -68,6 +84,17 @@ TEST(TestStaticCairoText, TextTextureSize)
       }
     }
   }
+}
+
+TEST_F(TestStaticCairoText, TextPreLayoutManagementMultipleCalls)
+{
+  EXPECT_CALL(*text.GetPointer(), SetBaseSize(_, _)).Times(2);
+  text->PreLayoutManagement();
+ 
+  // assert that we do call the set base size that ensures that the layout will
+  // allocate enough space.
+  EXPECT_CALL(*text.GetPointer(), SetBaseSize(_, _)).Times(1);
+   text->PreLayoutManagement();
 }
 
 }
