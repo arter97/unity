@@ -298,6 +298,22 @@ class PanelWindowButtonsTests(PanelTestsBase):
         self.assertThat(self.panel.window_buttons_shown, Eventually(Equals(True)))
         self.assertWinButtonsInOverlayMode(True)
 
+    def test_window_buttons_work_in_dash_after_launcher_resize(self):
+        """When the launcher icons are resized, the window
+        buttons must still work in the dash."""
+
+        self.set_unity_option("icon_size", 25)
+        self.dash.ensure_visible()
+        self.addCleanup(self.dash.ensure_hidden)
+
+        desired_max = not self.dash.view.dash_maximized
+        if desired_max:
+            self.panel.window_buttons.maximize.mouse_click()
+        else:
+            self.panel.window_buttons.unmaximize.mouse_click()
+
+        self.assertThat(self.dash.view.dash_maximized, Eventually(Equals(desired_max)))
+
     def test_window_buttons_show_with_hud(self):
         """Window buttons must be shown when the HUD is open."""
         self.hud.ensure_visible()
@@ -964,6 +980,18 @@ class PanelIndicatorEntryTests(PanelTestsBase):
         self.assertThat(menu_entry.active, Eventually(Equals(False)))
         self.assertThat(menu_entry.menu_x, Eventually(Equals(0)))
         self.assertThat(menu_entry.menu_y, Eventually(Equals(0)))
+
+    def test_indicator_opens_when_dash_is_open(self):
+        """When the dash is open and a click is on an indicator the dash
+        must close and the indicator must open.
+        """
+        self.dash.ensure_visible()
+
+        indicator = self.panel.indicators.get_indicator_by_name_hint("indicator-session")
+        self.mouse_open_indicator(indicator)
+
+        self.assertThat(indicator.active, Eventually(Equals(True)))
+        self.assertThat(self.dash.visible, Eventually(Equals(False)))
 
 
 class PanelKeyNavigationTests(PanelTestsBase):

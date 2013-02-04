@@ -96,6 +96,7 @@ if (GTEST_SRC_DIR AND
 # The actual test executable (xless) - do not put anything that requires X in here
   set (GTEST_XLESS_SOURCES
        test_main_xless.cpp
+       test_abstract_interface_generator.cpp
        test_launcher_model.cpp
        test_glib_object.cpp
        test_glib_object_utils.cpp
@@ -238,6 +239,7 @@ if (ENABLE_X_SUPPORT)
                  test_static_cairo_text.cpp
                  test_switcher_controller.cpp
                  test_switcher_model.cpp
+                 test_tabiterator.cpp
                  test_switcher_view.cpp
                  test_texture_cache.cpp
                  test_text_input.cpp
