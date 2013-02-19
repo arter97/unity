@@ -157,7 +157,7 @@ void LauncherIcon::LoadQuicklist()
     _allow_quicklist_to_show = false;
   });
 
-  QuicklistManager::Default()->RegisterQuicklist(_quicklist.GetPointer());
+  QuicklistManager::Default()->RegisterQuicklist(_quicklist);
 }
 
 const bool
@@ -230,7 +230,7 @@ LauncherIcon::OpenInstance(ActionArg arg)
   if (wm.IsScaleActive())
     wm.TerminateScale();
 
-  OpenInstanceLauncherIcon();
+  OpenInstanceLauncherIcon(arg.timestamp);
 
   UpdateQuirkTime(Quirk::LAST_ACTION);
 }
@@ -619,13 +619,13 @@ bool LauncherIcon::OpenQuicklist(bool select_first_item, int monitor)
   {
     auto conn = std::make_shared<sigc::connection>();
     *conn = win_manager.terminate_expo.connect([this, conn, tip_x, tip_y] {
-      QuicklistManager::Default()->ShowQuicklist(_quicklist.GetPointer(), tip_x, tip_y);
+      QuicklistManager::Default()->ShowQuicklist(_quicklist, tip_x, tip_y);
       conn->disconnect();
     });
   }
   else
   {
-    QuicklistManager::Default()->ShowQuicklist(_quicklist.GetPointer(), tip_x, tip_y);
+    QuicklistManager::Default()->ShowQuicklist(_quicklist, tip_x, tip_y);
   }
 
   return true;
@@ -661,7 +661,9 @@ void LauncherIcon::RecvMouseUp(int button, int monitor, unsigned long key_flags)
 
 void LauncherIcon::RecvMouseClick(int button, int monitor, unsigned long key_flags)
 {
-  ActionArg arg(ActionArg::LAUNCHER, button);
+  auto timestamp = nux::GetWindowThread()->GetGraphicsDisplay().GetCurrentEvent().x11_timestamp;
+
+  ActionArg arg(ActionArg::LAUNCHER, button, timestamp);
   arg.monitor = monitor;
 
   bool shift_pressed = nux::GetKeyModifierState(key_flags, nux::NUX_STATE_SHIFT);
@@ -710,7 +712,7 @@ LauncherIcon::SetCenter(nux::Point3 const& center, int monitor, nux::Geometry co
     tip_y = new_center.y;
 
     if (_quicklist && _quicklist->IsVisible())
-      QuicklistManager::Default()->ShowQuicklist(_quicklist.GetPointer(), tip_x, tip_y);
+      QuicklistManager::Default()->ShowQuicklist(_quicklist, tip_x, tip_y);
     else if (_tooltip && _tooltip->IsVisible())
       _tooltip->ShowTooltipWithTipAt(tip_x, tip_y);
   }
