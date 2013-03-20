@@ -200,7 +200,7 @@ void DashView::OnUriActivated(ResultView::ActivateType type, std::string const& 
     int row_height = 0;
     int results_to_the_left = 0;
     int results_to_the_right = 0;
-    g_variant_get(data, "(iiiiiii)", &last_activated_timestamp_, &column_x, &row_y, &column_width, &row_height, &results_to_the_left, &results_to_the_right);
+    g_variant_get(data, "(tiiiiii)", &last_activated_timestamp_, &column_x, &row_y, &column_width, &row_height, &results_to_the_left, &results_to_the_right);
 
     preview_state_machine_.SetSplitPosition(SplitPosition::CONTENT_AREA, row_y);
     preview_state_machine_.left_results = results_to_the_left;
@@ -703,7 +703,11 @@ void DashView::DrawContent(nux::GraphicsEngine& graphics_engine, bool force_draw
   renderer_.DrawInner(graphics_engine, content_geo_, renderer_geo_abs, renderer_geo);
 
   nux::Geometry const& geo_layout(layout_->GetGeometry());
-  graphics_engine.PushClippingRectangle(geo_layout);
+
+  // See lp bug: 1125346 (The sharp white line between dash and launcher is missing)
+  nux::Geometry clip_geo = geo_layout;
+  clip_geo.x += 1;
+  graphics_engine.PushClippingRectangle(clip_geo);
 
   if (IsFullRedraw())
   {
@@ -1131,7 +1135,7 @@ void DashView::OnActivateRequest(GVariant* args)
   }
   else if (/* visible_ && */ handled_type == NOT_HANDLED)
   {
-    ubus_manager_.SendMessage(UBUS_PLACE_VIEW_CLOSE_REQUEST, NULL,
+    ubus_manager_.SendMessage(UBUS_OVERLAY_CLOSE_REQUEST, NULL,
                               glib::Source::Priority::HIGH);
   }
   else if (/* visible_ && */ handled_type == GOTO_DASH_URI)
@@ -1359,7 +1363,7 @@ void DashView::OnUriActivatedReply(std::string const& uri, HandledType type, Len
     return;
   }
 
-  ubus_manager_.SendMessage(UBUS_PLACE_VIEW_CLOSE_REQUEST);
+  ubus_manager_.SendMessage(UBUS_OVERLAY_CLOSE_REQUEST);
 }
 
 bool DashView::DoFallbackActivation(std::string const& fake_uri)
@@ -1437,7 +1441,7 @@ bool DashView::InspectKeyEvent(unsigned int eventType,
     else if (search_bar_->search_string != "")
       search_bar_->search_string = "";
     else
-      ubus_manager_.SendMessage(UBUS_PLACE_VIEW_CLOSE_REQUEST);
+      ubus_manager_.SendMessage(UBUS_OVERLAY_CLOSE_REQUEST);
 
     return true;
   }
@@ -1507,7 +1511,7 @@ nux::Area* DashView::KeyNavIteration(nux::KeyNavDirection direction)
 
 void DashView::ProcessDndEnter()
 {
-  ubus_manager_.SendMessage(UBUS_PLACE_VIEW_CLOSE_REQUEST);
+  ubus_manager_.SendMessage(UBUS_OVERLAY_CLOSE_REQUEST);
 }
 
 nux::Area* DashView::FindKeyFocusArea(unsigned int key_symbol,
@@ -1557,7 +1561,7 @@ nux::Area* DashView::FindKeyFocusArea(unsigned int key_symbol,
 
     if (close_key.first == special_keys_state && close_key.second == x11_key_code)
     {
-      ubus_manager_.SendMessage(UBUS_PLACE_VIEW_CLOSE_REQUEST);
+      ubus_manager_.SendMessage(UBUS_OVERLAY_CLOSE_REQUEST);
       return nullptr;
     }
 
