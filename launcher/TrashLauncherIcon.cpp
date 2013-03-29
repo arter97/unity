@@ -23,36 +23,34 @@
 
 #include "config.h"
 #include <glib/gi18n-lib.h>
-#include <Nux/WindowCompositor.h>
 #include <NuxCore/Logger.h>
-#include <UnityCore/GLibDBusProxy.h>
 #include <zeitgeist.h>
+#include <UnityCore/DesktopUtilities.h>
 
-#include "Launcher.h"
-#include "QuicklistManager.h"
 #include "QuicklistMenuItemLabel.h"
-#include "FileManagerOpenerImp.h"
+#include "unity-shared/GnomeFileManager.h"
 
 namespace unity
 {
 namespace launcher
 {
-DECLARE_LOGGER(logger, "unity.launcher.icon");
+DECLARE_LOGGER(logger, "unity.launcher.icon.trash");
 namespace
 {
   const std::string ZEITGEIST_UNITY_ACTOR = "application://compiz.desktop";
-  const std::string TRASH_URI = "trash:///";
+  const std::string TRASH_URI = "trash:";
+  const std::string TRASH_PATH = "file://" + DesktopUtilities::GetUserDataDirectory() + "/Trash/files";
 }
 
-TrashLauncherIcon::TrashLauncherIcon(FileManagerOpener::Ptr const& fmo)
+TrashLauncherIcon::TrashLauncherIcon(FileManager::Ptr const& fmo)
   : SimpleLauncherIcon(IconType::TRASH)
-  , file_manager_(fmo ? fmo : std::make_shared<FileManagerOpenerImp>())
+  , file_manager_(fmo ? fmo : GnomeFileManager::Get())
 {
   tooltip_text = _("Trash");
   icon_name = "user-trash";
   position = Position::END;
   SetQuirk(Quirk::VISIBLE, true);
-  SetQuirk(Quirk::RUNNING, false);
+  SetQuirk(Quirk::RUNNING, IsOpened());
   SetShortcut('t');
 
   glib::Object<GFile> location(g_file_new_for_uri(TRASH_URI.c_str()));
@@ -73,6 +71,10 @@ TrashLauncherIcon::TrashLauncherIcon(FileManagerOpener::Ptr const& fmo)
     });
   }
 
+  file_manager_->locations_changed.connect([this] {
+    SetQuirk(Quirk::RUNNING, IsOpened());
+  });
+
   UpdateTrashIcon();
 }
 
@@ -86,12 +88,8 @@ AbstractLauncherIcon::MenuItemsVector TrashLauncherIcon::GetMenus()
   dbusmenu_menuitem_property_set_bool(menu_item, DBUSMENU_MENUITEM_PROP_ENABLED, !empty_);
   dbusmenu_menuitem_property_set_bool(menu_item, DBUSMENU_MENUITEM_PROP_VISIBLE, true);
   empty_activated_signal_.Connect(menu_item, DBUSMENU_MENUITEM_SIGNAL_ITEM_ACTIVATED,
-  [this] (DbusmenuMenuitem*, unsigned) {
-    auto proxy = std::make_shared<glib::DBusProxy>("org.gnome.Nautilus", "/org/gnome/Nautilus",
-                                                   "org.gnome.Nautilus.FileOperations");
-
-    // Passing the proxy to the lambda we ensure that it will be destroyed when needed
-    proxy->CallBegin("EmptyTrash", nullptr, [proxy] (GVariant*, glib::Error const&) {});
+  [this] (DbusmenuMenuitem*, unsigned timestamp) {
+    file_manager_->EmptyTrash(timestamp);
   });
 
   result.push_back(menu_item);
@@ -99,11 +97,23 @@ AbstractLauncherIcon::MenuItemsVector TrashLauncherIcon::GetMenus()
   return result;
 }
 
+bool TrashLauncherIcon::IsOpened() const
+{
+  return (file_manager_->IsPrefixOpened(TRASH_URI) || file_manager_->IsPrefixOpened(TRASH_PATH));
+}
+
 void TrashLauncherIcon::ActivateLauncherIcon(ActionArg arg)
 {
   SimpleLauncherIcon::ActivateLauncherIcon(arg);
 
-  file_manager_->Open(TRASH_URI.c_str(), arg.timestamp);
+  if (file_manager_->IsPrefixOpened(TRASH_PATH))
+  {
+    file_manager_->OpenActiveChild(TRASH_PATH.c_str(), arg.timestamp);
+  }
+  else
+  {
+    file_manager_->OpenActiveChild(TRASH_URI.c_str(), arg.timestamp);
+  }
 }
 
 void TrashLauncherIcon::UpdateTrashIcon()
