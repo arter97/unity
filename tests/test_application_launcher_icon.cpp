@@ -29,7 +29,6 @@
 #include "FavoriteStore.h"
 #include "StandaloneWindowManager.h"
 #include "mock-application.h"
-#include "StandaloneWindowManager.h"
 #include "test_utils.h"
 
 using namespace testing;
@@ -523,6 +522,15 @@ TEST_F(TestApplicationLauncherIcon, IsFileManager)
   app = std::make_shared<MockApplication>("/any/path/nautilus-home.desktop", "Nautilus");
   icon = new NiceMock<MockApplicationLauncherIcon>(app);
   EXPECT_TRUE(icon->IsFileManager());
+}
+
+TEST_F(TestApplicationLauncherIcon, AllowDetailViewInSwitcher)
+{
+  mock_app->type_ = "mock";
+  EXPECT_TRUE(mock_icon->AllowDetailViewInSwitcher());
+
+  mock_app->type_ = "webapp";
+  EXPECT_FALSE(mock_icon->AllowDetailViewInSwitcher());
 }
 
 }

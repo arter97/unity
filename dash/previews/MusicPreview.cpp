@@ -34,6 +34,7 @@
 #include "ActionButton.h"
 #include "Tracks.h"
 #include "PreviewInfoHintWidget.h"
+#include "PreviewPlayer.h"
 
 namespace unity
 {
@@ -177,8 +178,6 @@ void MusicPreview::SetupViews()
       {
         tracks_ = new previews::Tracks(tracks_model, NUX_TRACKER_LOCATION);
         AddChild(tracks_.GetPointer());
-        tracks_->play.connect(sigc::mem_fun(this, &MusicPreview::OnPlayTrack));
-        tracks_->pause.connect(sigc::mem_fun(this, &MusicPreview::OnPauseTrack));
         tracks_->mouse_click.connect(on_mouse_down);
       }
       /////////////////////
@@ -233,6 +232,7 @@ void MusicPreview::SetupViews()
         warning_msg_ = new StaticCairoText(
                      no_credentials_message_, true,
                      NUX_TRACKER_LOCATION);
+  	AddChild(warning_msg_.GetPointer());
         warning_msg_->SetFont(style.u1_warning_font().c_str());
         warning_msg_->SetLines(-2);
         warning_msg_->SetMinimumHeight(50);
@@ -242,7 +242,6 @@ void MusicPreview::SetupViews()
 
       }
      
-
         /////////////////////
 
       if (hints_layout) hint_actions_layout->AddView(hints_layout, 1);
@@ -262,30 +261,6 @@ void MusicPreview::SetupViews()
   mouse_click.connect(on_mouse_down);
 
   SetLayout(image_data_layout);
-}
-
-void MusicPreview::OnPlayTrack(std::string const& uri)
-{ 
-  dash::MusicPreview* music_preview_model = dynamic_cast<dash::MusicPreview*>(preview_model_.get());
-  if (!music_preview_model)
-  {
-    LOG_ERROR(logger) << "Play failed. No preview found";
-    return;
-  }
-
-  music_preview_model->PlayUri(uri);
-}
-
-void MusicPreview::OnPauseTrack(std::string const& uri)
-{
-  dash::MusicPreview* music_preview_model = dynamic_cast<dash::MusicPreview*>(preview_model_.get());
-  if (!music_preview_model)
-  {
-    LOG_ERROR(logger) << "Pause failed. No preview found";
-    return;
-  }
-
-  music_preview_model->PauseUri(uri);
 }
 
 void MusicPreview::PreLayoutManagement()
@@ -308,12 +283,23 @@ void MusicPreview::PreLayoutManagement()
 
   for (nux::AbstractButton* button : action_buttons_)
   {
-    button->SetMinMaxSize(CLAMP((details_width - style.GetSpaceBetweenActions()) / 2, 0, style.GetActionButtonMaximumWidth()), style.GetActionButtonHeight());
+    int action_width = CLAMP((details_width - style.GetSpaceBetweenActions()) /
+      2, 0, style.GetActionButtonMaximumWidth());
+    // do not use SetMinMax because width has to be able to grow
+    button->SetMinimumWidth(action_width);
+    button->SetMinimumHeight(style.GetActionButtonHeight());
+    button->SetMaximumHeight(style.GetActionButtonHeight());
   }
 
   Preview::PreLayoutManagement();
 }
 
+void MusicPreview::OnNavigateOut()
+{
+  PreviewPlayer player;
+  player.Stop();
 }
-}
-}
+
+} // namespace previews
+} // namespace dash
+} // namespace unity
