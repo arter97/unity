@@ -46,6 +46,7 @@ Build-Depends: cmake,
                libxpathselect-dev (>=1.3),
                libgtest-dev,
                google-mock,
+               libido3-0.1-dev,
 Standards-Version: 3.9.3
 Homepage: https://launchpad.net/unity
 # If you aren't a member of ~unity-team but need to upload packaging changes,
