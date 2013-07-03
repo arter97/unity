@@ -120,8 +120,6 @@ ApplicationLauncherIcon::~ApplicationLauncherIcon()
     app_->sticky = false;
     app_->seen = false;
   }
-
-  DisconnectApplicationSignalsConnections();
 }
 
 void ApplicationLauncherIcon::SetApplication(ApplicationPtr const& app)
@@ -130,7 +128,7 @@ void ApplicationLauncherIcon::SetApplication(ApplicationPtr const& app)
     return;
 
   app_ = app;
-  DisconnectApplicationSignalsConnections();
+  signals_conn_.Clear();
   SetupApplicationSignalsConnections();
 }
 
@@ -138,38 +136,38 @@ void ApplicationLauncherIcon::SetupApplicationSignalsConnections()
 {
   // Lambda functions should be fine here because when the application the icon
   // is only ever removed when the application is closed.
-  window_opened_connection_ = app_->window_opened.connect([this](ApplicationWindow const&) {
+  signals_conn_.Add(app_->window_opened.connect([this](ApplicationWindow const&) {
     EnsureWindowState();
     UpdateMenus();
     UpdateIconGeometries(GetCenters());
-  });
+  }));
 
-  window_closed_connection_ = app_->window_closed.connect(sigc::mem_fun(this, &ApplicationLauncherIcon::EnsureWindowState));
-  window_moved_connection_ = app_->window_moved.connect(sigc::hide(sigc::mem_fun(this, &ApplicationLauncherIcon::EnsureWindowState)));
+  signals_conn_.Add(app_->window_closed.connect(sigc::mem_fun(this, &ApplicationLauncherIcon::EnsureWindowState)));
+  signals_conn_.Add(app_->window_moved.connect(sigc::hide(sigc::mem_fun(this, &ApplicationLauncherIcon::EnsureWindowState))));
 
-  urgent_changed_connection_ = app_->urgent.changed.connect([this](bool const& urgent) {
+  signals_conn_.Add(app_->urgent.changed.connect([this](bool const& urgent) {
     LOG_DEBUG(logger) << tooltip_text() << " urgent now " << (urgent ? "true" : "false");
     SetQuirk(Quirk::URGENT, urgent);
-  });
+  }));
 
-  active_changed_connection_ = app_->active.changed.connect([this](bool const& active) {
+  signals_conn_.Add(app_->active.changed.connect([this](bool const& active) {
     LOG_DEBUG(logger) << tooltip_text() << " active now " << (active ? "true" : "false");
     SetQuirk(Quirk::ACTIVE, active);
-  });
+  }));
 
-  title_changed_connection_ = app_->title.changed.connect([this](std::string const& name) {
+  signals_conn_.Add(app_->title.changed.connect([this](std::string const& name) {
     LOG_DEBUG(logger) << tooltip_text() << " name now " << name;
     if (_menu_items.size() == MenuItemType::SIZE)
       _menu_items[MenuItemType::APP_NAME] = nullptr;
     tooltip_text = name;
-  });
+  }));
 
-  icon_changed_connection_ = app_->icon.changed.connect([this](std::string const& icon) {
+  signals_conn_.Add(app_->icon.changed.connect([this](std::string const& icon) {
     LOG_DEBUG(logger) << tooltip_text() << " icon now " << icon;
     icon_name = (icon.empty() ? DEFAULT_ICON : icon);
-  });
+  }));
 
-  running_changed_connection_ = app_->running.changed.connect([this](bool const& running) {
+  signals_conn_.Add(app_->running.changed.connect([this](bool const& running) {
     LOG_DEBUG(logger) << tooltip_text() << " running now " << (running ? "true" : "false");
     SetQuirk(Quirk::RUNNING, running);
 
@@ -180,14 +178,14 @@ void ApplicationLauncherIcon::SetupApplicationSignalsConnections()
       EnsureWindowState();
       UpdateIconGeometries(GetCenters());
     }
-  });
+  }));
 
-  visible_changed_connection_ = app_->visible.changed.connect([this](bool const& visible) {
+  signals_conn_.Add(app_->visible.changed.connect([this](bool const& visible) {
     if (!IsSticky())
       SetQuirk(Quirk::VISIBLE, visible);
-  });
+  }));
 
-  closed_changed_connection_ = app_->closed.connect([this]() {
+  signals_conn_.Add(app_->closed.connect([this]() {
     if (!IsSticky())
     {
       SetQuirk(Quirk::VISIBLE, false);
@@ -203,21 +201,7 @@ void ApplicationLauncherIcon::SetupApplicationSignalsConnections()
         return false;
       }, ICON_REMOVE_TIMEOUT);
     }
-  });
-}
-
-void ApplicationLauncherIcon::DisconnectApplicationSignalsConnections()
-{
-  window_opened_connection_.disconnect();
-  window_closed_connection_.disconnect();
-  window_moved_connection_.disconnect();
-  urgent_changed_connection_.disconnect();
-  active_changed_connection_.disconnect();
-  running_changed_connection_.disconnect();
-  visible_changed_connection_.disconnect();
-  title_changed_connection_.disconnect();
-  icon_changed_connection_.disconnect();
-  closed_changed_connection_.disconnect();
+  }));
 }
 
 bool ApplicationLauncherIcon::GetQuirk(AbstractLauncherIcon::Quirk quirk) const
@@ -871,7 +855,7 @@ void ApplicationLauncherIcon::ToggleSticky()
   }
 }
 
-void ApplicationLauncherIcon::EnsureMenuItemsControlReady()
+void ApplicationLauncherIcon::EnsureMenuItemsDefaultReady()
 {
   if (_menu_items.size() == MenuItemType::SIZE)
     return;
@@ -914,24 +898,18 @@ void ApplicationLauncherIcon::EnsureMenuItemsControlReady()
 AbstractLauncherIcon::MenuItemsVector ApplicationLauncherIcon::GetMenus()
 {
   MenuItemsVector result;
+  glib::Object<DbusmenuMenuitem> quit_item;
   bool separator_needed = false;
 
-  EnsureMenuItemsControlReady();
+  EnsureMenuItemsDefaultReady();
   UpdateMenus();
 
-  std::vector<glib::Object<DbusmenuClient>> menu_clients = { _menuclient_dynamic_quicklist };
-
-  for (auto const& client : menu_clients)
+  for (auto const& menus : {GetRemoteMenus(), _menu_desktop_shortcuts})
   {
-    if (!client || !client.IsType(DBUSMENU_TYPE_CLIENT))
+    if (!menus.IsType(DBUSMENU_TYPE_MENUITEM))
       continue;
 
-    DbusmenuMenuitem* root = dbusmenu_client_get_root(client);
-
-    if (!root || !dbusmenu_menuitem_property_get_bool(root, DBUSMENU_MENUITEM_PROP_VISIBLE))
-      continue;
-
-    for (GList* l = dbusmenu_menuitem_get_children(root); l; l = l->next)
+    for (GList* l = dbusmenu_menuitem_get_children(menus); l; l = l->next)
     {
       glib::Object<DbusmenuMenuitem> item(static_cast<DbusmenuMenuitem*>(l->data), glib::AddRef());
 
@@ -940,26 +918,33 @@ AbstractLauncherIcon::MenuItemsVector ApplicationLauncherIcon::GetMenus()
 
       if (dbusmenu_menuitem_property_get_bool(item, DBUSMENU_MENUITEM_PROP_VISIBLE))
       {
-        separator_needed = true;
         dbusmenu_menuitem_property_set_bool(item, QuicklistMenuItem::MARKUP_ENABLED_PROPERTY, FALSE);
 
+        const gchar* type = dbusmenu_menuitem_property_get(item, DBUSMENU_MENUITEM_PROP_TYPE);
+
+        if (!type) // (g_strcmp0 (type, DBUSMENU_MENUITEM_PROP_LABEL) == 0)
+        {
+          if (dbusmenu_menuitem_property_get_bool(item, QuicklistMenuItem::QUIT_ACTION_PROPERTY))
+          {
+            quit_item = item;
+            continue;
+          }
+
+          const gchar* l = dbusmenu_menuitem_property_get(item, DBUSMENU_MENUITEM_PROP_LABEL);
+          auto const& label = glib::gchar_to_string(l);
+
+          if (label == _("Quit")  || label == "Quit"  ||
+              label == _("Exit")  || label == "Exit"  ||
+              label == _("Close") || label == "Close")
+          {
+            quit_item = item;
+            continue;
+          }
+        }
+
+        separator_needed = true;
         result.push_back(item);
       }
-    }
-  }
-
-  // FIXME: this should totally be added as a _menu_client
-  if (DBUSMENU_IS_MENUITEM(_menu_desktop_shortcuts.RawPtr()))
-  {
-    for (GList* l = dbusmenu_menuitem_get_children(_menu_desktop_shortcuts); l; l = l->next)
-    {
-      glib::Object<DbusmenuMenuitem> item(static_cast<DbusmenuMenuitem*>(l->data), glib::AddRef());
-
-      if (!item.IsType(DBUSMENU_TYPE_MENUITEM))
-        continue;
-
-      separator_needed = true;
-      result.push_back(item);
     }
   }
 
@@ -975,9 +960,7 @@ AbstractLauncherIcon::MenuItemsVector ApplicationLauncherIcon::GetMenus()
     std::string bold_app_name("<b>"+app_name.Str()+"</b>");
 
     glib::Object<DbusmenuMenuitem> item(dbusmenu_menuitem_new());
-    dbusmenu_menuitem_property_set(item,
-                                   DBUSMENU_MENUITEM_PROP_LABEL,
-                                   bold_app_name.c_str());
+    dbusmenu_menuitem_property_set(item, DBUSMENU_MENUITEM_PROP_LABEL, bold_app_name.c_str());
     dbusmenu_menuitem_property_set_bool(item, DBUSMENU_MENUITEM_PROP_ENABLED, TRUE);
     dbusmenu_menuitem_property_set_bool(item, QuicklistMenuItem::MARKUP_ENABLED_PROPERTY, TRUE);
 
@@ -1011,29 +994,11 @@ AbstractLauncherIcon::MenuItemsVector ApplicationLauncherIcon::GetMenus()
 
   if (IsRunning())
   {
-    bool exists = false;
-    auto const& it = _menu_items[MenuItemType::QUIT];
-    const gchar* label = dbusmenu_menuitem_property_get(it, DBUSMENU_MENUITEM_PROP_LABEL);
-    auto const& label_default = glib::gchar_to_string(label);
+    if (!quit_item)
+      quit_item = _menu_items[MenuItemType::QUIT];
 
-    for (auto menu_item : result)
-    {
-      const gchar* type = dbusmenu_menuitem_property_get(menu_item, DBUSMENU_MENUITEM_PROP_TYPE);
-
-      if (!type)//(g_strcmp0 (type, DBUSMENU_MENUITEM_PROP_LABEL) == 0)
-      {
-        label = dbusmenu_menuitem_property_get(menu_item, DBUSMENU_MENUITEM_PROP_LABEL);
-
-        if (glib::gchar_to_string(label) == label_default)
-        {
-          exists = true;
-          break;
-        }
-      }
-    }
-
-    if (!exists)
-      result.push_back(it);
+    dbusmenu_menuitem_property_set(quit_item, DBUSMENU_MENUITEM_PROP_LABEL, _("Quit"));
+    result.push_back(quit_item);
   }
 
   return result;
