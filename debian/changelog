@@ -1,3 +1,10 @@
+unity (7.0.2+13.10.20130705.1-0ubuntu3) saucy; urgency=low
+
+  * Add a Provides: unity-common-7.0, for packages that depend on particular
+    schema interfaces (e.g., unity-lens-applications).
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Sun, 14 Jul 2013 20:32:12 +0000
+
 unity (7.0.2+13.10.20130705.1-0ubuntu2) saucy; urgency=low
 
   * Drop unity-common, which is not common at all across versions; instead,
