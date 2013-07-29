@@ -998,6 +998,16 @@ on_entry_removed (IndicatorObject      *object,
   g_hash_table_remove (self->priv->id2entry_hash, entry_id);
   g_free (entry_id);
 
+  if (entry->label)
+    {
+      g_signal_handlers_disconnect_by_data (entry->label, object);
+    }
+
+  if (entry->image)
+    {
+      g_signal_handlers_disconnect_by_data (entry->image, object);
+    }
+
   notify_object (object);
 }
 
