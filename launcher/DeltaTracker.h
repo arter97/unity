@@ -1,6 +1,6 @@
 // -*- Mode: C++; indent-tabs-mode: nil; tab-width: 2 -*-
 /*
- * Copyright (C) 2010 Canonical Ltd
+ * Copyright (C) 2011 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -14,32 +14,40 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Authored by: Jason Smith <jason.smith@canonical.com>
+ * Authored by: Brandon Schaefer <brandon.schaefer@canonical.com>
  */
 
-#include "SpacerLauncherIcon.h"
-
-#include "config.h"
-#include <glib/gi18n-lib.h>
+#ifndef DELTA_TRACKER_H
+#define DELTA_TRACKER_H
 
 namespace unity
 {
-namespace launcher
-{
 
-SpacerLauncherIcon::SpacerLauncherIcon(int monitor)
-  : SingleMonitorLauncherIcon(IconType::SPACER, monitor)
+class DeltaTracker
 {
-  SetQuirk(Quirk::VISIBLE, true);
-  SetQuirk(Quirk::RUNNING, false);
+public:
+  DeltaTracker();
 
-  tooltip_text = _("Drop To Add Application");
+  void HandleNewMouseDelta(int dx, int dy);
+  void ResetState();
+
+  unsigned int AmountOfDirectionsChanged() const;
+
+private:
+  enum DeltaState
+  {
+    NONE  = 1 << 0,
+    RIGHT = 1 << 1,
+    DOWN  = 1 << 2,
+    LEFT  = 1 << 3,
+    UP    = 1 << 4
+  };
+
+  bool HasState(DeltaState const& state) const;
+
+  unsigned int delta_state_;
+};
+
 }
 
-std::string SpacerLauncherIcon::GetName() const
-{
-    return "SpacerLauncherIcon";
-}
-
-} // namespace launcher
-} // namespace unity
+#endif // DELTA_TRACKER_H

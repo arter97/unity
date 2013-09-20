@@ -36,9 +36,10 @@ namespace switcher
 
 namespace
 {
-  const unsigned int VERTICAL_PADDING = 45;
-  const unsigned int SPREAD_OFFSET = 100;
-  const unsigned int EXTRA_ICON_SPACE = 10;
+  unsigned int const VERTICAL_PADDING = 45;
+  unsigned int const SPREAD_OFFSET = 100;
+  unsigned int const EXTRA_ICON_SPACE = 10;
+  unsigned int const MAX_DIRECTIONS_CHANGED = 3; 
 }
 
 NUX_IMPLEMENT_OBJECT_TYPE(SwitcherView);
@@ -61,6 +62,7 @@ SwitcherView::SwitcherView()
   , last_icon_selected_(-1)
   , last_detail_icon_selected_(-1)
   , target_sizes_set_(false)
+  , check_mouse_first_time_(true)
 {
   icon_renderer_->pip_style = OVER_TILE;
   icon_renderer_->monitor = monitors::MAX;
@@ -114,6 +116,7 @@ void SwitcherView::AddProperties(GVariantBuilder* builder)
   .add("animation-length", animation_length)
   .add("spread-size", (float)spread_size)
   .add("label", text_view_->GetText())
+  .add("last_icon_selected", last_icon_selected_)
   .add("spread_offset", SPREAD_OFFSET)
   .add("label_visible", text_view_->IsVisible());
 }
@@ -204,6 +207,7 @@ void SwitcherView::OnDetailSelectionChanged(bool detail)
   text_view_->SetVisible(!detail);
 
   last_detail_icon_selected_ = -1;
+  check_mouse_first_time_ = true;
 
   if (!detail)
   {
@@ -220,6 +224,8 @@ void SwitcherView::OnSelectionChanged(AbstractLauncherIcon::Ptr const& selection
   if (selection)
     text_view_->SetText(selection->tooltip_text());
 
+  delta_tracker_.ResetState();
+
   SaveLast();
   QueueDraw();
 }
@@ -232,8 +238,33 @@ nux::Point CalculateMouseMonitorOffset(int x, int y)
   return {geo.x + x, geo.y + y};
 }
 
-void SwitcherView::RecvMouseMove(int x, int y, int /*dx*/, int /*dy*/, unsigned long /*button_flags*/, unsigned long /*key_flags*/)
+void SwitcherView::MouseHandlingBackToNormal()
 {
+  check_mouse_first_time_ = false;
+  last_icon_selected_ = -1;
+  last_detail_icon_selected_ = -1;
+}
+
+void SwitcherView::RecvMouseMove(int x, int y, int dx, int dy, unsigned long /*button_flags*/, unsigned long /*key_flags*/)
+{
+  // We just started, and want to check if we are a bump or not.
+  // Once we are no longer a bump, skip!!
+  if (check_mouse_first_time_)
+  {
+    if (CheckMouseInsideBackground(x,y))
+    {
+      delta_tracker_.HandleNewMouseDelta(dx, dy);
+      if (delta_tracker_.AmountOfDirectionsChanged() >= MAX_DIRECTIONS_CHANGED)
+      {
+        MouseHandlingBackToNormal();
+      }
+    }
+    else
+    {
+      MouseHandlingBackToNormal();
+    }
+  }
+
   if (model_->detail_selection)
   {
     HandleDetailMouseMove(x, y);
@@ -249,16 +280,32 @@ void SwitcherView::HandleDetailMouseMove(int x, int y)
   nux::Point const& mouse_pos = CalculateMouseMonitorOffset(x, y);
   int detail_icon_index = DetailIconIdexAt(mouse_pos.x, mouse_pos.y);
 
+  if (check_mouse_first_time_)
+  {
+    last_detail_icon_selected_ = detail_icon_index;
+    return;
+  }
+
   if (detail_icon_index >= 0 && detail_icon_index != last_detail_icon_selected_)
   {
     model_->detail_selection_index = detail_icon_index;
     last_detail_icon_selected_ = detail_icon_index;
+  }
+  else if (detail_icon_index < 0)
+  {
+    last_detail_icon_selected_ = -1;
   }
 }
 
 void SwitcherView::HandleMouseMove(int x, int y)
 {
   int icon_index = IconIndexAt(x, y);
+
+  if (check_mouse_first_time_)
+  {
+    last_icon_selected_ = icon_index;
+    return;
+  }
 
   if (icon_index >= 0)
   {
@@ -273,6 +320,10 @@ void SwitcherView::HandleMouseMove(int x, int y)
     }
 
     switcher_mouse_move.emit(icon_index);
+  }
+  else if (icon_index < 0)
+  {
+    last_icon_selected_ = -1;
   }
 }
 
@@ -339,6 +390,10 @@ void SwitcherView::HandleDetailMouseUp(int x, int y, int button)
     {
       model_->detail_selection_index = detail_icon_index;
       hide_request.emit(true);
+    }
+    else if (detail_icon_index < 0)
+    {
+      model_->detail_selection = false;
     }
   }
   else if (button == 3)
@@ -534,13 +589,13 @@ nux::Size SwitcherView::SpreadSize()
   return result;
 }
 
-void SwitcherView::GetFlatIconPositions (int n_flat_icons,
-                                         int size,
-                                         int selection,
-                                         int &first_flat,
-                                         int &last_flat,
-                                         int &half_fold_left,
-                                         int &half_fold_right)
+void GetFlatIconPositions (int n_flat_icons,
+                           int size,
+                           int selection,
+                           int &first_flat,
+                           int &last_flat,
+                           int &half_fold_left,
+                           int &half_fold_right)
 {
   half_fold_left = -1;
   half_fold_right = -1;

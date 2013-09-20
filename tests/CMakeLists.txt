@@ -130,8 +130,11 @@ if (GMOCK_LIB AND
 # The actual test executable (xless) - do not put anything that requires X in here
   set (GTEST_XLESS_SOURCES
        test_main_xless.cpp
+       mock-application.cpp
        test_abstract_interface_generator.cpp
+       test_animation_utils.cpp
        test_connection_manager.cpp
+       test_delta_tracker.cpp
        test_glib_dbus_object.cpp
        test_glib_cancellable.cpp
        test_glib_object.cpp
@@ -145,6 +148,7 @@ if (GMOCK_LIB AND
        test_grabhandle.cpp
        test_gsettings_scopes.cpp
        test_desktop_utilities.cpp
+       test_desktop_application_subject.cpp
        test_indicator.cpp
        test_indicator_appmenu.cpp
        test_indicator_entry.cpp
@@ -175,6 +179,7 @@ if (GMOCK_LIB AND
       unity-shared
       unity-shared-standalone
       launcher-lib
+      switcher-lib
       ${GMOCK_LIB}
       ${GMOCK_MAIN_LIB}
       ${LIBS}
