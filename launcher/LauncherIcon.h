@@ -22,8 +22,6 @@
 #define LAUNCHERICON_H
 
 #include <Nux/Nux.h>
-#include <Nux/BaseWindow.h>
-#include <NuxCore/Animation.h>
 
 #include <gtk/gtk.h>
 #include <libdbusmenu-glib/client.h>
@@ -33,7 +31,6 @@
 #include "AbstractLauncherIcon.h"
 #include "Tooltip.h"
 #include "QuicklistView.h"
-#include "unity-shared/Introspectable.h"
 #include "LauncherEntryRemote.h"
 
 
@@ -41,7 +38,6 @@ namespace unity
 {
 namespace launcher
 {
-
 class Launcher;
 
 class LauncherIcon : public AbstractLauncherIcon
@@ -78,7 +74,7 @@ public:
   bool OpenQuicklist(bool select_first_item = false, int monitor = -1);
   void CloseQuicklist();
 
-  void SetCenter(nux::Point3 const& center, int parent_monitor, nux::Geometry const& parent_geo);
+  void SetCenter(nux::Point3 const& center, int parent_monitor);
 
   nux::Point3 GetCenter(int monitor);
 
@@ -299,10 +295,8 @@ private:
 
   static void ChildRealized(DbusmenuMenuitem* newitem, QuicklistView* quicklist);
   static void RootChanged(DbusmenuClient* client, DbusmenuMenuitem* newroot, QuicklistView* quicklist);
-  bool OnPresentTimeout();
-  bool OnCenterStabilizeTimeout();
-
   void ColorForIcon(GdkPixbuf* pixbuf, nux::Color& background, nux::Color& glow);
+  nux::Point GetTipPosition() const;
 
   void LoadTooltip();
   void LoadQuicklist();
@@ -324,7 +318,6 @@ private:
   std::vector<bool> _has_visible_window;
   std::vector<bool> _is_visible_on_monitor;
   std::vector<nux::Point3> _last_stable;
-  std::vector<nux::Geometry> _parent_geo;
   std::vector<nux::Point3> _saved_center;
 
   static glib::Object<GtkIconTheme> _unity_theme;
@@ -338,8 +331,6 @@ private:
 
   std::list<LauncherEntryRemote::Ptr> _entry_list;
   glib::Object<DbusmenuClient> _remote_menus;
-
-  nux::animation::AnimateValue<double> _tooltip_fade_animator;
 
 protected:
   glib::SourceManager _source_manager;
