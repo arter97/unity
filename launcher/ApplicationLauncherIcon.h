@@ -52,7 +52,7 @@ public:
   bool IsRunning() const;
   bool IsUrgent() const;
 
-  virtual bool GetQuirk(Quirk quirk) const;
+  virtual bool GetQuirk(Quirk quirk, int monitor = 0) const override;
 
   virtual void Quit();
   virtual void AboutToRemove();
@@ -77,8 +77,8 @@ protected:
   ApplicationPtr GetApplication() const;
 
   void Remove();
-  void UpdateIconGeometries(std::vector<nux::Point3> center);
-  void OnCenterStabilized(std::vector<nux::Point3> center);
+  void UpdateIconGeometries(std::vector<nux::Point3> const& centers);
+  void OnCenterStabilized(std::vector<nux::Point3> const& centers);
   void AddProperties(GVariantBuilder* builder);
   void OnAcceptDrop(DndData const& dnd_data);
   void OnDndEnter();

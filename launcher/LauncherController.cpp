@@ -82,7 +82,6 @@ namespace
 {
   const int launcher_minimum_show_duration = 1250;
   const int shortcuts_show_delay = 750;
-  const int ignore_repeat_shortcut_duration = 250;
 
   const std::string KEYPRESS_TIMEOUT = "keypress-timeout";
   const std::string LABELS_TIMEOUT = "label-show-timeout";
@@ -118,7 +117,6 @@ Controller::Impl::Impl(Controller* parent, XdndManager::Ptr const& xdnd_manager,
   , reactivate_keynav(false)
   , keynav_restore_window_(true)
   , launcher_key_press_time_(0)
-  , last_dnd_monitor_(-1)
   , dbus_server_(DBUS_NAME)
 {
 #ifdef USE_X11
@@ -166,8 +164,7 @@ Controller::Impl::Impl(Controller* parent, XdndManager::Ptr const& xdnd_manager,
 
     if (selected)
     {
-      ubus.SendMessage(UBUS_LAUNCHER_SELECTION_CHANGED,
-                       g_variant_new_string(selected->tooltip_text().c_str()));
+      ubus.SendMessage(UBUS_LAUNCHER_SELECTION_CHANGED, glib::Variant(selected->tooltip_text()));
     }
   });
 
@@ -200,6 +197,10 @@ void Controller::Impl::EnsureLaunchers(int primary, std::vector<nux::Geometry> c
   unsigned int num_launchers = parent_->multiple_launchers ? num_monitors : 1;
   unsigned int launchers_size = launchers.size();
   unsigned int last_launcher = 0;
+
+  // Reset the icon centers: only the used icon centers must contain valid values
+  for (auto const& icon : *model_)
+    icon->ResetCenters();
 
   for (unsigned int i = 0; i < num_launchers; ++i, ++last_launcher)
   {
@@ -276,8 +277,7 @@ void Controller::Impl::OnDndStarted(std::string const& data, int monitor)
 {
   if (parent_->multiple_launchers)
   {
-    last_dnd_monitor_ = monitor;
-    launchers[last_dnd_monitor_]->DndStarted(data);
+    launchers[monitor]->DndStarted(data);
   }
   else
   {
@@ -289,8 +289,8 @@ void Controller::Impl::OnDndFinished()
 {
   if (parent_->multiple_launchers)
   {
-    launchers[last_dnd_monitor_]->DndFinished();
-    last_dnd_monitor_ = -1;
+    if (xdnd_manager_->Monitor() >= 0)
+      launchers[xdnd_manager_->Monitor()]->DndFinished();
   }
   else
   {
@@ -298,14 +298,15 @@ void Controller::Impl::OnDndFinished()
   }
 }
 
-void Controller::Impl::OnDndMonitorChanged(int monitor)
+void Controller::Impl::OnDndMonitorChanged(std::string const& data, int old_monitor, int new_monitor)
 {
   if (parent_->multiple_launchers)
   {
-    launchers[last_dnd_monitor_]->UnsetDndQuirk();
-    last_dnd_monitor_ = monitor;
-    launchers[last_dnd_monitor_]->SetDndQuirk();
- }
+    if (old_monitor >= 0)
+      launchers[old_monitor]->UnsetDndQuirk();
+
+    launchers[new_monitor]->DndStarted(data);
+  }
 }
 
 Launcher* Controller::Impl::CreateLauncher()
@@ -761,7 +762,7 @@ void Controller::Impl::RegisterIcon(AbstractLauncherIcon::Ptr const& icon, int p
 
   if (icon->GetIconType() == AbstractLauncherIcon::IconType::APPLICATION)
   {
-    icon->visibility_changed.connect(sigc::mem_fun(this, &Impl::SortAndUpdate));
+    icon->visibility_changed.connect(sigc::hide(sigc::mem_fun(this, &Impl::SortAndUpdate)));
     SortAndUpdate();
   }
 
@@ -939,7 +940,6 @@ SoftwareCenterLauncherIcon::Ptr Controller::Impl::CreateSCLauncherIcon(std::stri
     return result;
 
   result = new SoftwareCenterLauncherIcon(app, aptdaemon_trans_id, icon_path);
-  result->Stick(false);
 
   return result;
 }
@@ -954,6 +954,7 @@ void Controller::Impl::AddRunningApps()
     if (!app->seen())
     {
       AbstractLauncherIcon::Ptr icon(new ApplicationLauncherIcon(app));
+      icon->SkipQuirkAnimation(AbstractLauncherIcon::Quirk::VISIBLE);
       RegisterIcon(icon, ++sort_priority_);
     }
   }
@@ -965,7 +966,10 @@ void Controller::Impl::AddDevices()
   for (auto const& icon : device_section_.GetIcons())
   {
     if (!icon->IsSticky() && !fav_store.IsFavorite(icon->RemoteUri()))
+    {
+      icon->SkipQuirkAnimation(AbstractLauncherIcon::Quirk::VISIBLE);
       RegisterIcon(icon, ++sort_priority_);
+    }
   }
 }
 
@@ -1014,7 +1018,14 @@ void Controller::Impl::SetupIcons()
     }
 
     LOG_INFO(logger) << "Adding favourite: " << fav_uri;
-    RegisterIcon(CreateFavoriteIcon(fav_uri), ++sort_priority_);
+
+    auto const& icon = CreateFavoriteIcon(fav_uri);
+
+    if (icon)
+    {
+      icon->SkipQuirkAnimation(AbstractLauncherIcon::Quirk::VISIBLE);
+      RegisterIcon(icon, ++sort_priority_);
+    }
   }
 
   if (!running_apps_added)
@@ -1240,25 +1251,21 @@ void Controller::HandleLauncherKeyRelease(bool was_tap, int when)
   }
 }
 
-bool Controller::HandleLauncherKeyEvent(Display *display, unsigned int key_sym, unsigned long key_code, unsigned long key_state, char* key_string, Time timestamp)
+bool Controller::HandleLauncherKeyEvent(unsigned long key_state, unsigned int key_sym, Time timestamp)
 {
-  LauncherModel::iterator it;
-
   // Shortcut to start launcher icons. Only relies on Keycode, ignore modifier
-  for (it = pimpl->model_->begin(); it != pimpl->model_->end(); ++it)
+  for (auto const& icon : *pimpl->model_)
   {
-    if ((XKeysymToKeycode(display, (*it)->GetShortcut()) == key_code) ||
-        ((gchar)((*it)->GetShortcut()) == key_string[0]))
+    if (icon->GetShortcut() == key_sym)
     {
-      struct timespec last_action_time = (*it)->GetQuirkTime(AbstractLauncherIcon::Quirk::LAST_ACTION);
-      struct timespec current;
-      TimeUtil::SetTimeStruct(&current);
-      if (TimeUtil::TimeDelta(&current, &last_action_time) > local::ignore_repeat_shortcut_duration)
+      if ((key_state & nux::KEY_MODIFIER_SHIFT) &&
+          icon->GetIconType() == AbstractLauncherIcon::IconType::APPLICATION)
       {
-        if (g_ascii_isdigit((gchar)(*it)->GetShortcut()) && (key_state & ShiftMask))
-          (*it)->OpenInstance(ActionArg(ActionArg::Source::LAUNCHER, 0, timestamp));
-        else
-          (*it)->Activate(ActionArg(ActionArg::Source::LAUNCHER, 0, timestamp));
+        icon->OpenInstance(ActionArg(ActionArg::Source::LAUNCHER_KEYBINDING, 0, timestamp));
+      }
+      else
+      {
+        icon->Activate(ActionArg(ActionArg::Source::LAUNCHER_KEYBINDING, 0, timestamp));
       }
 
       // disable the "tap on super" check
@@ -1304,12 +1311,12 @@ void Controller::KeyNavActivate()
   if (pimpl->launcher_grabbed)
   {
     pimpl->ubus.SendMessage(UBUS_LAUNCHER_START_KEY_NAV,
-                            g_variant_new_int32(pimpl->keyboard_launcher_->monitor));
+                            glib::Variant(pimpl->keyboard_launcher_->monitor()));
   }
   else
   {
     pimpl->ubus.SendMessage(UBUS_LAUNCHER_START_KEY_SWITCHER,
-                            g_variant_new_int32(pimpl->keyboard_launcher_->monitor));
+                            glib::Variant(pimpl->keyboard_launcher_->monitor()));
   }
 
   AbstractLauncherIcon::Ptr const& selected = pimpl->model_->Selection();
@@ -1317,7 +1324,7 @@ void Controller::KeyNavActivate()
   if (selected)
   {
     pimpl->ubus.SendMessage(UBUS_LAUNCHER_SELECTION_CHANGED,
-                            g_variant_new_string(selected->tooltip_text().c_str()));
+                            glib::Variant(selected->tooltip_text()));
   }
 }
 
@@ -1330,7 +1337,7 @@ void Controller::KeyNavNext()
   if (selected)
   {
     pimpl->ubus.SendMessage(UBUS_LAUNCHER_SELECTION_CHANGED,
-                            g_variant_new_string(selected->tooltip_text().c_str()));
+                            glib::Variant(selected->tooltip_text()));
   }
 }
 
@@ -1343,7 +1350,7 @@ void Controller::KeyNavPrevious()
   if (selected)
   {
     pimpl->ubus.SendMessage(UBUS_LAUNCHER_SELECTION_CHANGED,
-                            g_variant_new_string(selected->tooltip_text().c_str()));
+                            glib::Variant(selected->tooltip_text()));
   }
 }
 
@@ -1368,12 +1375,12 @@ void Controller::KeyNavTerminate(bool activate)
     pimpl->launcher_event_outside_connection_->disconnect();
     pimpl->launcher_grabbed = false;
     pimpl->ubus.SendMessage(UBUS_LAUNCHER_END_KEY_NAV,
-                            g_variant_new_boolean(pimpl->keynav_restore_window_));
+                            glib::Variant(pimpl->keynav_restore_window_));
   }
   else
   {
     pimpl->ubus.SendMessage(UBUS_LAUNCHER_END_KEY_SWITCHER,
-                            g_variant_new_boolean(pimpl->keynav_restore_window_));
+                            glib::Variant(pimpl->keynav_restore_window_));
   }
 
   if (activate)

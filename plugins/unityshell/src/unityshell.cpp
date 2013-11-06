@@ -489,6 +489,7 @@ void UnityScreen::EnsureSuperKeybindings()
     CreateSuperNewAction(shortcut, impl::ActionModifiers::NONE);
     CreateSuperNewAction(shortcut, impl::ActionModifiers::USE_NUMPAD);
     CreateSuperNewAction(shortcut, impl::ActionModifiers::USE_SHIFT);
+    CreateSuperNewAction(shortcut, impl::ActionModifiers::USE_SHIFT_NUMPAD);
   }
 
   for (auto shortcut : dash_controller_->GetAllShortcuts())
@@ -744,9 +745,9 @@ void UnityScreen::paintDisplay()
         unsigned int oldGlAddGeometryIndex = uTrayWindow->gWindow->glAddGeometryGetCurrentIndex ();
         unsigned int oldGlDrawIndex = uTrayWindow->gWindow->glDrawGetCurrentIndex ();
 
-        attrib.opacity = OPAQUE;
-        attrib.brightness = BRIGHT;
-        attrib.saturation = COLOR;
+        attrib.opacity = COMPIZ_COMPOSITE_OPAQUE;
+        attrib.brightness = COMPIZ_COMPOSITE_BRIGHT;
+        attrib.saturation = COMPIZ_COMPOSITE_COLOR;
 
         oTransform.toScreenSpace (output, -DEFAULT_Z_CAMERA);
 
@@ -1379,6 +1380,9 @@ void UnityScreen::compizDamageNux(CompRegion const& damage)
   if (dash_controller_->IsVisible())
     redraw_view_if_damaged(dash_controller_->Dash(), damage);
 
+  if (hud_controller_->IsVisible())
+    redraw_view_if_damaged(hud_controller_->HudView(), damage);
+
   auto const& launchers = launcher_controller_->launchers();
   for (auto const& launcher : launchers)
   {
@@ -1571,7 +1575,7 @@ void UnityScreen::handleEvent(XEvent* event)
       {
         /* We need an idle to postpone this action, after the current event
          * has been processed */
-        sources_.AddIdle([&] {
+        sources_.AddIdle([this] {
           shortcut_controller_->SetEnabled(false);
           shortcut_controller_->Hide();
           LOG_DEBUG(logger) << "Hiding shortcut controller due to keypress event.";
@@ -1581,9 +1585,7 @@ void UnityScreen::handleEvent(XEvent* event)
         });
       }
 
-      KeySym key_sym;
-      char key_string[2];
-      int result = XLookupString(&(event->xkey), key_string, 2, &key_sym, 0);
+      KeySym key_sym = XkbKeycodeToKeysym(event->xany.display, event->xkey.keycode, 0, 0);
 
       if (launcher_controller_->KeyNavIsActive())
       {
@@ -1606,27 +1608,26 @@ void UnityScreen::handleEvent(XEvent* event)
         {
           switcher_controller_->Hide(false);
           skip_other_plugins = true;
+          break;
         }
       }
 
-      if (result > 0)
+      if (super_keypressed_)
       {
-        // NOTE: does this have the potential to do an invalid write?  Perhaps
-        // we should just say "key_string[1] = 0" because that is the only
-        // thing that could possibly make sense here.
-        key_string[result] = 0;
-
-        if (super_keypressed_)
+        if (IsKeypadKey(key_sym))
         {
-          skip_other_plugins = launcher_controller_->HandleLauncherKeyEvent(screen->dpy(), key_sym, event->xkey.keycode, event->xkey.state, key_string, event->xkey.time);
-          if (!skip_other_plugins)
-            skip_other_plugins = dash_controller_->CheckShortcutActivation(key_string);
+          key_sym = XkbKeycodeToKeysym(event->xany.display, event->xkey.keycode, 0, 1);
+          key_sym = key_sym - XK_KP_0 + XK_0;
+        }
 
-          if (skip_other_plugins && launcher_controller_->KeyNavIsActive())
-          {
-            launcher_controller_->KeyNavTerminate(false);
-            EnableCancelAction(CancelActionTarget::LAUNCHER_SWITCHER, false);
-          }
+        skip_other_plugins = launcher_controller_->HandleLauncherKeyEvent(XModifiersToNux(event->xkey.state), key_sym, event->xkey.time);
+        if (!skip_other_plugins)
+          skip_other_plugins = dash_controller_->CheckShortcutActivation(XKeysymToString(key_sym));
+
+        if (skip_other_plugins && launcher_controller_->KeyNavIsActive())
+        {
+          launcher_controller_->KeyNavTerminate(false);
+          EnableCancelAction(CancelActionTarget::LAUNCHER_SWITCHER, false);
         }
       }
       break;
@@ -3421,7 +3422,7 @@ bool WindowHasInconsistentShapeRects (Display *d,
 }
 
 UnityWindow::UnityWindow(CompWindow* window)
-  : BaseSwitchWindow (dynamic_cast<BaseSwitchScreen *> (UnityScreen::get (screen)), window)
+  : BaseSwitchWindow(static_cast<BaseSwitchScreen*>(UnityScreen::get(screen)), window)
   , PluginClassHandler<UnityWindow, CompWindow>(window)
   , window(window)
   , cWindow(CompositeWindow::get(window))
@@ -3503,6 +3504,7 @@ void UnityWindow::AddProperties(GVariantBuilder* builder)
     .add("vertically_maximized", wm.IsWindowVerticallyMaximized(xid))
     .add("minimized", wm.IsWindowMinimized(xid))
     .add("scaled", scaled)
+    .add("scaled_close_geo", close_button_geo_)
     .add("scaled_close_x", close_button_geo_.x)
     .add("scaled_close_y", close_button_geo_.y)
     .add("scaled_close_width", close_button_geo_.width)

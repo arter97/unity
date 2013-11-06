@@ -27,12 +27,26 @@
 #include <Nux/WindowThread.h>
 #include <NuxCore/Property.h>
 #include <sigc++/sigc++.h>
+#include <unordered_set>
 
 #include <scale/scale.h>
 #include <core/core.h>
 #include <core/pluginclasshandler.h>
-#include <composite/composite.h>
 #include <opengl/opengl.h>
+
+// These fixes some definitions from the composite header
+#ifdef COLOR
+#define COMPIZ_COMPOSITE_COLOR 0xffff
+#undef COLOR
+#endif
+#ifdef OPAQUE
+#define COMPIZ_COMPOSITE_OPAQUE 0xffff
+#undef OPAQUE
+#endif
+#ifdef BRIGHT
+#define COMPIZ_COMPOSITE_BRIGHT 0xffff
+#undef BRIGHT
+#endif
 
 #include "unityshell_options.h"
 
@@ -329,7 +343,7 @@ private:
   GLMatrix panel_shadow_matrix_;
 
   bool paint_panel_under_dash_;
-  std::set<UnityWindow*> fake_decorated_windows_;
+  std::unordered_set<UnityWindow*> fake_decorated_windows_;
 
   bool scale_just_activated_;
   WindowMinimizeSpeedController minimize_speed_controller_;
