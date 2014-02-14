@@ -18,12 +18,13 @@
  */
 
 #include <glib.h>
-#include <sstream>
-#include "PluginAdapter.h"
+#include <gdk/gdkx.h>
 #include "UScreen.h"
+#include "DecorationStyle.h"
+#include "PluginAdapter.h"
+#include "CompizUtils.h"
 
 #include <NuxCore/Logger.h>
-#include <UnityCore/Variant.h>
 
 namespace unity
 {
@@ -32,17 +33,11 @@ namespace
 {
 const int THRESHOLD_HEIGHT = 600;
 const int THRESHOLD_WIDTH = 1024;
-const char* _UNITY_FRAME_EXTENTS = "_UNITY_FRAME_EXTENTS";
 
 std::shared_ptr<PluginAdapter> global_instance;
 }
 
 #define MAXIMIZABLE (CompWindowActionMaximizeHorzMask & CompWindowActionMaximizeVertMask & CompWindowActionResizeMask)
-
-#define MWM_HINTS_FUNCTIONS     (1L << 0)
-#define MWM_HINTS_DECORATIONS   (1L << 1)
-#define MWM_HINTS_UNDECORATED_UNITY 0x80
-
 
 WindowManagerPtr create_window_manager()
 {
@@ -140,33 +135,6 @@ void PluginAdapter::NotifyStateChange(CompWindow* window, unsigned int state, un
            && !((state & MAXIMIZE_STATE) == MAXIMIZE_STATE))
   {
     window_restored.emit(window->id());
-  }
-}
-
-void PluginAdapter::NotifyNewDecorationState(Window xid)
-{
-  auto deco_state_it = _window_decoration_state.find(xid);
-  bool wasTracked = (deco_state_it != _window_decoration_state.end());
-  bool wasDecorated = false;
-
-  if (wasTracked)
-  {
-    wasDecorated = deco_state_it->second;
-    _window_decoration_state.erase(deco_state_it);
-  }
-
-  bool decorated = HasWindowDecorations(xid);
-
-  if (decorated == wasDecorated)
-    return;
-
-  if (decorated && (!wasDecorated || !wasTracked))
-  {
-    window_decorated.emit(xid);
-  }
-  else if (wasDecorated || !wasTracked)
-  {
-    window_undecorated.emit(xid);
   }
 }
 
@@ -450,6 +418,49 @@ std::vector<Window> PluginAdapter::GetWindowsInStackingOrder() const
   return ret;
 }
 
+bool PluginAdapter::IsTopWindowFullscreenOnMonitorWithMouse() const
+{
+  int monitor = unity::UScreen::GetDefault()->GetMonitorWithMouse();
+  Window top_win = GetTopMostWindowInMonitor(monitor);
+  CompWindow* window = m_Screen->findWindow(top_win);
+
+  if (window)
+    return (window->state() & CompWindowStateFullscreenMask);
+
+  return false;
+}
+
+Window PluginAdapter::GetTopMostWindowInMonitor(int monitor) const
+{
+  CompWindow* window = nullptr;
+  nux::Geometry const& m_geo = unity::UScreen::GetDefault()->GetMonitorGeometry(monitor);
+
+  CompPoint screen_vp = m_Screen->vp();
+
+  auto const& windows = m_Screen->windows();
+  for (auto it = windows.rbegin(); it != windows.rend(); ++it)
+  {
+    window = *it;
+    nux::Geometry const& win_geo = GetWindowGeometry(window->id());
+    nux::Geometry const& intersect_geo = win_geo.Intersect(m_geo);
+
+    if (intersect_geo.width > 0 &&
+        intersect_geo.height > 0 &&
+        window->defaultViewport() == screen_vp &&
+        window->isViewable() && window->isMapped() &&
+        !window->minimized() && !window->inShowDesktopMode() &&
+        !(window->state() & CompWindowStateAboveMask) &&
+        !(window->type() & CompWindowTypeSplashMask) &&
+        !(window->type() & CompWindowTypeDockMask) &&
+        !window->overrideRedirect())
+    {
+      return window->id();
+    }
+  }
+
+  return 0;
+}
+
 bool PluginAdapter::IsWindowMaximized(Window window_id) const
 {
   CompWindow* window = m_Screen->findWindow(window_id);
@@ -477,69 +488,23 @@ bool PluginAdapter::IsWindowHorizontallyMaximized(Window window_id) const
   return false;
 }
 
-unsigned long PluginAdapter::GetMwnDecorations(Window window_id) const
-{
-  Display* display = m_Screen->dpy();
-  MotifWmHints* hints = NULL;
-  Atom type = None;
-  gint format;
-  gulong nitems;
-  gulong bytes_after;
-  unsigned long decorations = 0;
-
-  if (XGetWindowProperty(display, window_id, Atoms::mwmHints, 0,
-                         sizeof(MotifWmHints) / sizeof(long), False,
-                         Atoms::mwmHints, &type, &format, &nitems, &bytes_after,
-                         (guchar**)&hints) != Success)
-  {
-    return decorations;
-  }
-
-  decorations |= (MwmDecorAll | MwmDecorTitle);
-
-  if (!hints)
-    return decorations;
-
-  /* Check for the presence of the high bit
-   * if present, it means that we undecorated
-   * this window, so don't mark it as undecorated */
-  if (type == Atoms::mwmHints && format != 0 && hints->flags & MWM_HINTS_DECORATIONS)
-  {
-    decorations = hints->decorations;
-  }
-
-  XFree(hints);
-  return decorations;
-}
-
 bool PluginAdapter::HasWindowDecorations(Window window_id) const
 {
-  auto deco_state_it = _window_decoration_state.find(window_id);
-
-  if (deco_state_it != _window_decoration_state.end())
-    return deco_state_it->second;
-
-  unsigned long decorations = GetMwnDecorations(window_id);
-
-  /* Must have both bits set */
-  bool decorated = (decorations & (MwmDecorAll | MwmDecorTitle)) ||
-                   (decorations & MWM_HINTS_UNDECORATED_UNITY);
-
-  _window_decoration_state[window_id] = decorated;
-
-  return decorated;
+  return compiz_utils::IsWindowFullyDecorable(m_Screen->findWindow(window_id));
 }
 
 bool PluginAdapter::IsWindowDecorated(Window window_id) const
 {
-  bool decorated = GetMwnDecorations(window_id) & (MwmDecorAll | MwmDecorTitle);
-
-  if (decorated && GetCardinalProperty(window_id, Atoms::frameExtents).empty())
+  if (CompWindow* win = m_Screen->findWindow(window_id))
   {
-    decorated = false;
+    if ((win->state() & MAXIMIZE_STATE) != MAXIMIZE_STATE &&
+        compiz_utils::IsWindowFullyDecorable(win))
+    {
+      return true;
+    }
   }
 
-  return decorated;
+  return false;
 }
 
 bool PluginAdapter::IsWindowOnCurrentDesktop(Window window_id) const
@@ -573,7 +538,7 @@ bool PluginAdapter::IsWindowObscured(Window window_id) const
           && sibling->isMapped()
           && sibling->isViewable()
           && (sibling->state() & MAXIMIZE_STATE) == MAXIMIZE_STATE
-          && !GetWindowGeometry(sibling->id()).Intersect(win_geo).IsNull())
+          && GetWindowGeometry(sibling->id()).IsIntersecting(win_geo))
       {
         return true;
       }
@@ -713,59 +678,6 @@ void PluginAdapter::Maximize(Window window_id)
     window->maximize(MAXIMIZE_STATE);
 }
 
-void PluginAdapter::VerticallyMaximizeWindowAt(CompWindow* window, nux::Geometry const& geo)
-{
-  if (window && ((window->type() & CompWindowTypeNormalMask) ||
-      ((window->actions() & CompWindowActionMaximizeVertMask) &&
-        window->actions() & CompWindowActionResizeMask)))
-  {
-    /* First we unmaximize the Window */
-    if (window->state() & MAXIMIZE_STATE)
-      window->maximize(0);
-
-    /* Then we vertically maximize the it so it can be unminimized correctly */
-    if (!(window->state() & CompWindowStateMaximizedVertMask))
-      window->maximize(CompWindowStateMaximizedVertMask);
-
-    /* Then we resize and move it on the requested place */
-    MoveResizeWindow(window->id(), geo);
-  }
-}
-
-void PluginAdapter::LeftMaximize(Window window_id)
-{
-  CompWindow* window = m_Screen->findWindow(window_id);
-
-  if (!window)
-    return;
-
-  /* Let's compute the area where the window should stay */
-  CompRect workarea = m_Screen->getWorkareaForOutput(window->outputDevice());
-  nux::Geometry win_geo(workarea.x() + window->border().left,
-                        workarea.y() + window->border().top,
-                        workarea.width() / 2 - (window->border().left + window->border().right),
-                        workarea.height() - (window->border().top + window->border().bottom));
-
-  VerticallyMaximizeWindowAt(window, win_geo);
-}
-
-void PluginAdapter::RightMaximize(Window window_id)
-{
-  CompWindow* window = m_Screen->findWindow(window_id);
-
-  if (!window)
-    return;
-
-  /* Let's compute the area where the window should stay */
-  CompRect workarea = m_Screen->getWorkareaForOutput(window->outputDevice());
-  nux::Geometry win_geo(workarea.x() + workarea.width() / 2 + window->border().left,
-                        workarea.y() + window->border().top,
-                        workarea.width() / 2 - (window->border().left + window->border().right),
-                        workarea.height() - (window->border().top + window->border().bottom));
-
-  VerticallyMaximizeWindowAt(window, win_geo);
-}
-
 void PluginAdapter::Restore(Window window_id)
 {
   CompWindow* window = m_Screen->findWindow(window_id);
@@ -784,6 +696,11 @@ void PluginAdapter::RestoreAt(Window window_id, int x, int y)
     window->maximize(0);
     MoveResizeWindow(window_id, new_geo);
   }
+}
+
+void PluginAdapter::ShowActionMenu(Time timestamp, Window window_id, unsigned button, nux::Point const& p)
+{
+  m_Screen->toolkitAction(Atoms::toolkitActionWindowMenu, timestamp, window_id, button, p.x, p.y);
 }
 
 void PluginAdapter::Minimize(Window window_id)
@@ -1090,45 +1007,21 @@ nux::Size PluginAdapter::GetWindowDecorationSize(Window window_id, WindowManager
 {
   if (CompWindow* window = m_Screen->findWindow(window_id))
   {
-    if (HasWindowDecorations(window_id))
+    if (compiz_utils::IsWindowFullyDecorable(window))
     {
       auto const& win_rect = window->borderRect();
+      auto const& extents = decoration::Style::Get()->Border();
 
-      if (IsWindowDecorated(window_id))
+      switch (edge)
       {
-        auto const& extents = window->border();
-
-        switch (edge)
-        {
-          case Edge::LEFT:
-            return nux::Size(extents.left, win_rect.height());
-          case Edge::TOP:
-            return nux::Size(win_rect.width(), extents.top);
-          case Edge::RIGHT:
-            return nux::Size(extents.right, win_rect.height());
-          case Edge::BOTTOM:
-            return nux::Size(win_rect.width(), extents.bottom);
-        }
-      }
-      else
-      {
-        Atom unity_extents = gdk_x11_get_xatom_by_name(_UNITY_FRAME_EXTENTS);
-        auto const& extents = GetCardinalProperty(window_id, unity_extents);
-
-        if (extents.size() == 4)
-        {
-          switch (edge)
-          {
-            case Edge::LEFT:
-              return nux::Size(extents[unsigned(Edge::LEFT)], win_rect.height());
-            case Edge::TOP:
-              return nux::Size(win_rect.width(), extents[unsigned(Edge::TOP)]);
-            case Edge::RIGHT:
-              return nux::Size(extents[unsigned(Edge::RIGHT)], win_rect.height());
-            case Edge::BOTTOM:
-              return nux::Size(win_rect.width(), extents[unsigned(Edge::BOTTOM)]);
-          }
-        }
+        case Edge::LEFT:
+          return nux::Size(extents.left, win_rect.height());
+        case Edge::TOP:
+          return nux::Size(win_rect.width(), extents.top);
+        case Edge::RIGHT:
+          return nux::Size(extents.right, win_rect.height());
+        case Edge::BOTTOM:
+          return nux::Size(win_rect.width(), extents.bottom);
       }
     }
   }
@@ -1235,12 +1128,10 @@ void PluginAdapter::SetViewportSize(int horizontal, int vertical)
     return;
   }
 
-  CompOption::Value hsize;
-  hsize.set<int>(horizontal);
+  CompOption::Value hsize(horizontal);
   m_Screen->setOptionForPlugin("core", "hsize", hsize);
 
   CompOption::Value vsize(vertical);
-  vsize.set<int>(vertical);
   m_Screen->setOptionForPlugin("core", "vsize", vsize);
 
   LOG_INFO(logger) << "Setting viewport size to " << hsize.i() << "x" << vsize.i();
@@ -1254,100 +1145,6 @@ int PluginAdapter::GetViewportHSize() const
 int PluginAdapter::GetViewportVSize() const
 {
   return m_Screen->vpSize().height();
-}
-
-void PluginAdapter::SetMwmWindowHints(Window xid, MotifWmHints* new_hints) const
-{
-  Display* display = m_Screen->dpy();
-  MotifWmHints* data = NULL;
-  MotifWmHints* hints = NULL;
-  Atom type = None;
-  gint format;
-  gulong nitems;
-  gulong bytes_after;
-
-  if (XGetWindowProperty(display,
-                         xid,
-                         Atoms::mwmHints, 0, sizeof(MotifWmHints) / sizeof(long),
-                         False, AnyPropertyType, &type, &format, &nitems,
-                         &bytes_after, (guchar**)&data) != Success)
-  {
-    return;
-  }
-
-  if (type != Atoms::mwmHints || !data)
-  {
-    hints = new_hints;
-  }
-  else
-  {
-    hints = data;
-
-    if (new_hints->flags & MWM_HINTS_FUNCTIONS)
-    {
-      hints->flags |= MWM_HINTS_FUNCTIONS;
-      hints->functions = new_hints->functions;
-    }
-    if (new_hints->flags & MWM_HINTS_DECORATIONS)
-    {
-      hints->flags |= MWM_HINTS_DECORATIONS;
-      hints->decorations = new_hints->decorations;
-    }
-  }
-
-  XChangeProperty(display, xid, Atoms::mwmHints, Atoms::mwmHints, 32, PropModeReplace,
-                  (guchar*)hints, sizeof(MotifWmHints) / sizeof(long));
-
-  if (data)
-    XFree(data);
-}
-
-void PluginAdapter::Decorate(Window window_id) const
-{
-  if (!HasWindowDecorations(window_id))
-    return;
-
-  MotifWmHints hints = { 0 };
-
-  hints.flags = MWM_HINTS_DECORATIONS;
-  hints.decorations = GDK_DECOR_ALL & ~(MWM_HINTS_UNDECORATED_UNITY);
-
-  SetMwmWindowHints(window_id, &hints);
-
-  // Removing the saved windows extents
-  Atom atom = gdk_x11_get_xatom_by_name(_UNITY_FRAME_EXTENTS);
-  XDeleteProperty(m_Screen->dpy(), window_id, atom);
-}
-
-void PluginAdapter::Undecorate(Window window_id) const
-{
-  if (!IsWindowDecorated(window_id))
-    return;
-
-  if (CompWindow* window = m_Screen->findWindow(window_id))
-  {
-    // Saving the previous window extents values
-    long extents[4];
-    auto const& border = window->border();
-    extents[unsigned(Edge::LEFT)] = border.left;
-    extents[unsigned(Edge::RIGHT)] = border.right;
-    extents[unsigned(Edge::TOP)] = border.top;
-    extents[unsigned(Edge::BOTTOM)] = border.bottom;
-
-    Atom atom = gdk_x11_get_xatom_by_name(_UNITY_FRAME_EXTENTS);
-    XChangeProperty(m_Screen->dpy(), window_id, atom, XA_CARDINAL, 32,
-                    PropModeReplace, (unsigned char*) extents, 4);
-  }
-
-  MotifWmHints hints = { 0 };
-
-  /* Set the high bit to indicate that we undecorated this
-   * window, when an application attempts to "undecorate"
-   * the window again, this bit will be cleared */
-  hints.flags = MWM_HINTS_DECORATIONS;
-  hints.decorations = MWM_HINTS_UNDECORATED_UNITY;
-
-  SetMwmWindowHints(window_id, &hints);
 }
 
 bool PluginAdapter::IsScreenGrabbed() const
@@ -1544,104 +1341,17 @@ void PluginAdapter::OnWindowClosed(CompWindow *w)
     _last_focused_window = NULL;
 }
 
-void PluginAdapter::AddProperties(GVariantBuilder* builder)
+void PluginAdapter::AddProperties(debug::IntrospectionData& wrapper)
 {
-  unity::variant::BuilderWrapper wrapper(builder);
   wrapper.add(GetScreenGeometry())
          .add("workspace_count", WorkspaceCount())
-         .add("active_window", (uint64_t)GetActiveWindow())
+         .add("active_window", GetActiveWindow())
          .add("screen_grabbed", IsScreenGrabbed())
          .add("scale_active", IsScaleActive())
          .add("scale_active_for_group", IsScaleActiveForGroup())
          .add("expo_active", IsExpoActive())
          .add("viewport_switch_running", IsViewPortSwitchStarted())
          .add("showdesktop_active", _in_show_desktop);
-}
-
-std::string PluginAdapter::GetWindowName(Window window_id) const
-{
-  std::string name;
-  Atom visibleNameAtom;
-
-  visibleNameAtom = gdk_x11_get_xatom_by_name("_NET_WM_VISIBLE_NAME");
-  name = GetUtf8Property(window_id, visibleNameAtom);
-
-  if (name.empty())
-    name = GetUtf8Property(window_id, Atoms::wmName);
-
-  if (name.empty())
-    name = GetTextProperty(window_id, XA_WM_NAME);
-
-  return name;
-}
-
-std::string PluginAdapter::GetUtf8Property(Window window_id, Atom atom) const
-{
-  Atom type;
-  int result, format;
-  unsigned long n_items, bytes_after;
-  char *val = nullptr;
-  std::string retval;
-
-  result = XGetWindowProperty(m_Screen->dpy(), window_id, atom, 0L, 65536, False,
-                              Atoms::utf8String, &type, &format, &n_items,
-                              &bytes_after, reinterpret_cast<unsigned char **>(&val));
-
-  if (result != Success)
-    return retval;
-
-  if (type == Atoms::utf8String && format == 8 && val && n_items > 0)
-  {
-    retval = std::string(val, n_items);
-  }
-
-  XFree(val);
-
-  return retval;
-}
-
-std::string PluginAdapter::GetTextProperty(Window window_id, Atom atom) const
-{
-  XTextProperty text;
-  std::string retval;
-  text.nitems = 0;
-
-  if (XGetTextProperty(m_Screen->dpy(), window_id, &text, atom))
-  {
-    if (text.value)
-    {
-      retval = std::string(reinterpret_cast<char*>(text.value), text.nitems);
-      XFree(text.value);
-    }
-  }
-
-  return retval;
-}
-
-std::vector<long> PluginAdapter::GetCardinalProperty(Window window_id, Atom atom) const
-{
-  Atom type;
-  int result, format;
-  unsigned long n_items, bytes_after;
-  long *buf = nullptr;
-
-  result = XGetWindowProperty(m_Screen->dpy(), window_id, atom, 0L, 65536, False,
-                              XA_CARDINAL, &type, &format, &n_items, &bytes_after,
-                              reinterpret_cast<unsigned char **>(&buf));
-
-  std::unique_ptr<long[], int(*)(void*)> buffer(buf, XFree);
-
-  if (result == Success && type == XA_CARDINAL && format == 32 && buffer && n_items > 0)
-  {
-    std::vector<long> values(n_items);
-
-    for (unsigned i = 0; i < n_items; ++i)
-      values[i] = buffer[i];
-
-    return values;
-  }
-
-  return std::vector<long>();
 }
 
 } // namespace unity

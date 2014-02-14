@@ -232,11 +232,14 @@ class SwitcherTests(SwitcherTestCase):
 
         charmap, calc, mahjongg = self.start_applications()
 
+        self.addCleanup(self.unity.switcher.terminate)
+
         for monitor in range(num_monitors):
             move_mouse_to_screen(monitor)
             self.unity.switcher.initiate()
-            self.addCleanup(self.unity.switcher.terminate)
             self.assertThat(self.unity.switcher.monitor, Eventually(Equals(monitor)))
+            self.unity.switcher.terminate()
+            sleep(1)
 
     def test_switcher_alt_f4_is_disabled(self):
         """Tests that alt+f4 does not work while switcher is active."""
@@ -255,6 +258,12 @@ class SwitcherTests(SwitcherTestCase):
 
 class SwitcherWindowsManagementTests(SwitcherTestCase):
     """Test the switcher window management."""
+
+    def setUp(self):
+        super(SwitcherTestCase, self).setUp()
+
+    def tearDown(self):
+        super(SwitcherTestCase, self).tearDown()
 
     def test_switcher_raises_only_last_focused_window(self):
         """Tests that when we do an alt+tab only the previously focused window is raised.
@@ -303,6 +312,89 @@ class SwitcherWindowsManagementTests(SwitcherTestCase):
 
         self.keybinding("switcher/reveal_normal")
         self.assertProperty(calc_win, is_focused=True)
+
+
+class SwitcherInteractionTests(SwitcherTestCase):
+    """Test the switcher interactions with the rest of the shell."""
+
+    def setUp(self):
+        super(SwitcherTestCase, self).setUp()
+
+    def tearDown(self):
+        super(SwitcherTestCase, self).tearDown()
+
+    def open_switcher_after_overlay(self, overlay):
+        self.start_applications()
+        self.addCleanup(overlay.ensure_hidden)
+        overlay.ensure_visible()
+
+        self.unity.switcher.initiate()
+        self.addCleanup(self.unity.switcher.terminate)
+
+        self.assertThat(overlay.visible, Eventually(Equals(False)))
+        self.assertThat(self.unity.switcher.visible, Eventually(Equals(True)))
+
+
+class SwitcherOverlaysInteractionTests(SwitcherInteractionTests):
+    """Test the switcher interactions with the shell overlays."""
+
+    scenarios = multiply_scenarios(SwitcherTestCase.scenarios,
+      [
+          ('Dash', {'overlay': "self.unity.dash"}),
+          ('Hud', {'overlay': "self.unity.hud"}),
+      ]
+      )
+
+    def setUp(self):
+        super(SwitcherOverlaysInteractionTests, self).setUp()
+        self.overlay = eval(self.overlay)
+
+    def tearDown(self):
+        super(SwitcherOverlaysInteractionTests, self).tearDown()
+
+    def test_switcher_shows_on_overlay_opened(self):
+        """Tests if switcher shows when overlay is opened"""
+        self.open_switcher_after_overlay(self.overlay)
+
+    def test_switcher_tab_key_work_after_overlay_is_closed(self):
+        """Tests that the switcher tab key work when initializing the
+        switcher after closing the overlay
+        """
+        self.open_switcher_after_overlay(self.overlay)
+
+        start = self.unity.switcher.selection_index
+        next_index = (start + 1) % len(self.unity.switcher.icons)
+        self.unity.switcher.next_icon()
+        self.assertThat(self.unity.switcher.selection_index, Eventually(Equals(next_index)))
+
+        self.unity.switcher.previous_icon()
+        self.assertThat(self.unity.switcher.selection_index, Eventually(Equals(start)))
+
+    def test_switcher_arrow_keys_work_after_overlay_is_closed(self):
+        """Tests that the switcher arrow keys work when initializing the
+        switcher after closing the overlay
+        """
+        self.open_switcher_after_overlay(self.overlay)
+
+        start = self.unity.switcher.selection_index
+        next_index = (start + 1) % len(self.unity.switcher.icons)
+        self.keyboard.press_and_release('Right')
+        self.assertThat(self.unity.switcher.selection_index, Eventually(Equals(next_index)))
+
+        self.keyboard.press_and_release('Left')
+        self.assertThat(self.unity.switcher.selection_index, Eventually(Equals(start)))
+
+    def test_switcher_detail_mode_works_after_overlay_is_closed(self):
+        """Tests that the switcher detail mode through the 'Down' arrow key
+        work when initializing the switcher after closing the overlay
+        """
+        self.open_switcher_after_overlay(self.overlay)
+
+        self.keyboard.press_and_release('Down')
+        self.assertProperty(self.unity.switcher, mode=SwitcherMode.DETAIL)
+
+        self.keyboard.press_and_release('Up')
+        self.assertProperty(self.unity.switcher, mode=SwitcherMode.NORMAL)
 
 
 class SwitcherDetailsTests(SwitcherTestCase):
@@ -552,8 +644,8 @@ class SwitcherDetailsMouseTests(SwitcherTestCase):
 
         # Must collect the cords before moving mouse
         for args in icon_args:
-            x = args.logical_center_x + offset
-            y = args.logical_center_y + offset
+            x = args.logical_center.x + offset
+            y = args.logical_center.y + offset
             icon_cords.append((x,y))
 
         self.unity.switcher.view.break_mouse_bump_detection()

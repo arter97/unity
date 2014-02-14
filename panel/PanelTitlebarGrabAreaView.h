@@ -46,13 +46,14 @@ public:
   sigc::signal<void, int, int> lower_request;
   sigc::signal<void, int, int> activate_request;
   sigc::signal<void, int, int> restore_request;
+  sigc::signal<void, int, int> menu_request;
   sigc::signal<void, int, int> grab_started;
   sigc::signal<void, int, int> grab_move;
   sigc::signal<void, int, int> grab_end;
 
 protected:
   std::string GetName() const;
-  void AddProperties(GVariantBuilder* builder);
+  void AddProperties(debug::IntrospectionData&);
 
 private:
   void OnMouseDown(int x, int y, unsigned long button_flags, unsigned long);

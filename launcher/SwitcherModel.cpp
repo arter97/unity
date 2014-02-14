@@ -20,7 +20,6 @@
 
 #include "SwitcherModel.h"
 #include "unity-shared/WindowManager.h"
-
 #include <UnityCore/Variant.h>
 
 namespace unity
@@ -43,9 +42,12 @@ SwitcherModel::SwitcherModel(std::vector<AbstractLauncherIcon::Ptr> const& icons
   // When using Webapps, there are more than one active icon, so let's just pick
   // up the first one found which is the web browser.
   bool found = false;
+  int order = 0;
 
   for (auto const& application : applications_)
   {
+    application->SetOrder(++order);
+
     AddChild(application.GetPointer());
     if (application->GetQuirk(AbstractLauncherIcon::Quirk::ACTIVE) && !found)
     {
@@ -68,12 +70,13 @@ std::string SwitcherModel::GetName() const
   return "SwitcherModel";
 }
 
-void SwitcherModel::AddProperties(GVariantBuilder* builder)
+void SwitcherModel::AddProperties(debug::IntrospectionData& introspection)
 {
-  unity::variant::BuilderWrapper(builder)
+  introspection
   .add("detail-selection", detail_selection)
   .add("detail-selection-index", (int)detail_selection_index)
   .add("detail-current-count", DetailXids().size())
+  .add("detail-windows", glib::Variant::FromVector(DetailXids()))
   .add("only-detail-on-viewport", only_detail_on_viewport)
   .add("selection-index", SelectionIndex())
   .add("last-selection-index", LastSelectionIndex());

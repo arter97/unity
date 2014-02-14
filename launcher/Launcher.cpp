@@ -41,7 +41,6 @@
 #include "unity-shared/UnitySettings.h"
 
 #include <UnityCore/GLibWrapper.h>
-#include <UnityCore/Variant.h>
 
 #include <boost/algorithm/string.hpp>
 
@@ -134,6 +133,7 @@ Launcher::Launcher(MockableBaseWindow* parent,
   , drag_gesture_ongoing_(false)
   , last_reveal_progress_(0.0f)
   , drag_action_(nux::DNDACTION_NONE)
+  , bg_effect_helper_(this)
   , auto_hide_animation_(ANIM_DURATION_SHORT)
   , hover_animation_(ANIM_DURATION)
   , drag_over_animation_(ANIM_DURATION_LONG)
@@ -144,9 +144,6 @@ Launcher::Launcher(MockableBaseWindow* parent,
 {
   icon_renderer_->monitor = monitor();
   icon_renderer_->SetTargetSize(icon_size_, DEFAULT_ICON_SIZE, SPACE_BETWEEN_ICONS);
-
-  bg_effect_helper_.owner = this;
-  bg_effect_helper_.enabled = false;
 
   CaptureMouseDownAnyWhereElse(true);
   SetAcceptKeyNavFocusOnMouseDown(false);
@@ -235,9 +232,9 @@ void Launcher::OnDragFinish(const nux::GestureEvent &event)
 }
 #endif
 
-void Launcher::AddProperties(GVariantBuilder* builder)
+void Launcher::AddProperties(debug::IntrospectionData& introspection)
 {
-  unity::variant::BuilderWrapper(builder)
+  introspection
   .add(GetAbsoluteGeometry())
   .add("hover-progress", hover_animation_.GetCurrentValue())
   .add("dnd-exit-progress", drag_over_animation_.GetCurrentValue())
@@ -922,17 +919,7 @@ void Launcher::ShowShortcuts(bool show)
 
 void Launcher::OnLockHideChanged(GVariant *data)
 {
-  gboolean enable_lock = FALSE;
-  g_variant_get(data, "(b)", &enable_lock);
-
-  if (enable_lock)
-  {
-    hide_machine_.SetQuirk(LauncherHideMachine::LOCK_HIDE, true);
-  }
-  else
-  {
-    hide_machine_.SetQuirk(LauncherHideMachine::LOCK_HIDE, false);
-  }
+  hide_machine_.SetQuirk(LauncherHideMachine::LOCK_HIDE, glib::Variant(data).GetBool());
 }
 
 void Launcher::DesaturateIcons()
@@ -1398,8 +1385,9 @@ void Launcher::HandleUrgentIcon(AbstractLauncherIcon::Ptr const& icon)
 
     // If the Launcher is hidden, then add a timer to wiggle the urgent icons at
     // certain intervals (1m, 2m, 4m, 8m, 16m, & 32m).
-    if (!urgent_timer_running && !animating)
+    if (!urgent_timer_running)
     {
+      urgent_animation_period_ = 0;
       urgent_ack_needed_ = true;
       SetUrgentTimer(BASE_URGENT_ANIMATION_PERIOD);
     }
@@ -1639,12 +1627,6 @@ void Launcher::DrawContent(nux::GraphicsEngine& GfxContext, bool force_draw)
 
   nux::Color clear_colour = nux::Color(0x00000000);
 
-  if (Settings::Instance().GetLowGfxMode())
-  {
-    clear_colour = options()->background_color;
-    clear_colour.alpha = 1.0f;
-  }
-
   // clear region
   GfxContext.PushClippingRectangle(base);
   gPainter.PushDrawColorLayer(GfxContext, base, clear_colour, true, ROP);
@@ -1687,16 +1669,15 @@ void Launcher::DrawContent(nux::GraphicsEngine& GfxContext, bool force_draw)
   {
     if (IsOverlayOpen() && bg_effect_helper_.enabled)
     {
-      nux::Geometry blur_geo(geo_absolute.x, geo_absolute.y, base.width, base.height);
       nux::ObjectPtr<nux::IOpenGLBaseTexture> blur_texture;
 
       if (BackgroundEffectHelper::blur_type != unity::BLUR_NONE && (bkg_box.x + bkg_box.width > 0))
       {
-        blur_texture = bg_effect_helper_.GetBlurRegion(blur_geo);
+        blur_texture = bg_effect_helper_.GetBlurRegion();
       }
       else
       {
-        blur_texture = bg_effect_helper_.GetRegion(blur_geo);
+        blur_texture = bg_effect_helper_.GetRegion();
       }
 
       if (blur_texture.IsValid())
@@ -1776,6 +1757,12 @@ void Launcher::DrawContent(nux::GraphicsEngine& GfxContext, bool force_draw)
       color.alpha = options()->background_alpha;
       gPainter.Paint2DQuadColor(GfxContext, bkg_box, color);
     }
+  }
+  else
+  {
+    nux::Color color = options()->background_color;
+    color.alpha = 1.0f;
+    gPainter.Paint2DQuadColor(GfxContext, bkg_box, color);
   }
 
   GfxContext.GetRenderStates().SetPremultipliedBlend(nux::SRC_OVER);
@@ -2400,12 +2387,6 @@ void Launcher::RenderIconToTexture(nux::GraphicsEngine& GfxContext, nux::ObjectP
   icon_renderer_->PreprocessIcons(drag_args, geo);
   icon_renderer_->RenderIcon(GfxContext, arg, geo, geo);
   unity::graphics::PopOffscreenRenderTarget();
-}
-
-// FIXME: This will need to be removed when the Unity performance branch is merged.
-void Launcher::NeedSoftRedraw()
-{
-  QueueDraw();
 }
 
 #ifdef NUX_GESTURES_SUPPORT

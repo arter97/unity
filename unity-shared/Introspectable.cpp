@@ -46,22 +46,22 @@ Introspectable::IntrospectableList Introspectable::GetIntrospectableChildren()
   return children_;
 }
 
-GVariant*
-Introspectable::Introspect()
+GVariant* Introspectable::Introspect()
 {
-  GVariantBuilder builder;
   GVariantBuilder child_builder;
   bool has_valid_children = false;
 
-  g_variant_builder_init(&builder, G_VARIANT_TYPE("a{sv}"));
-  variant::BuilderWrapper build_wrapper(&builder);
-  build_wrapper.add("id", id_);
-  AddProperties(&builder);
+  IntrospectionData data;
+  data.add("id", id_);
+  AddProperties(data);
 
   g_variant_builder_init(&child_builder, G_VARIANT_TYPE("as"));
 
-  for (auto const& child : GetIntrospectableChildren())
+  for (auto* child : GetIntrospectableChildren())
   {
+    if (!child)
+      continue;
+
     auto const& child_name = child->GetName();
 
     if (!child_name.empty())
@@ -74,21 +74,25 @@ Introspectable::Introspect()
   glib::Variant child_results(g_variant_builder_end(&child_builder));
 
   if (has_valid_children)
-    build_wrapper.add(CHILDREN_NAME, child_results);
+    data.add(CHILDREN_NAME, static_cast<GVariant*>(child_results));
 
-  return g_variant_builder_end(&builder);
+  return data.Get();
 }
 
-void
-Introspectable::AddChild(Introspectable* child)
+void Introspectable::AddChild(Introspectable* child)
 {
+  if (!child)
+    return;
+
   children_.push_back(child);
   child->parents_.push_back(this);
 }
 
-void
-Introspectable::RemoveChild(Introspectable* child)
+void Introspectable::RemoveChild(Introspectable* child)
 {
+  if (!child)
+    return;
+
   children_.remove(child);
   child->parents_.remove(this);
 }

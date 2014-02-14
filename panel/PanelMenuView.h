@@ -27,22 +27,22 @@
 #include <libbamf/libbamf.h>
 
 #include "PanelIndicatorsView.h"
+#include "PanelTitlebarGrabAreaView.h"
+#include "unity-shared/MenuManager.h"
 #include "unity-shared/StaticCairoText.h"
 #include "unity-shared/WindowButtons.h"
-#include "PanelTitlebarGrabAreaView.h"
 #include "unity-shared/UBusWrapper.h"
 
 namespace unity
+{
+namespace panel
 {
 
 class PanelMenuView : public PanelIndicatorsView
 {
 public:
-  PanelMenuView();
+  PanelMenuView(menu::Manager::Ptr const&);
   ~PanelMenuView();
-
-  void SetMenuShowTimings(int fadein, int fadeout, int discovery,
-                          int discovery_fadein, int discovery_fadeout);
 
   void SetMousePosition(int x, int y);
   void SetMonitor(int monitor);
@@ -60,7 +60,7 @@ public:
 
 protected:
   std::string GetName() const;
-  void AddProperties(GVariantBuilder* builder);
+  void AddProperties(debug::IntrospectionData&);
 
   virtual void Draw(nux::GraphicsEngine& GfxContext, bool force_draw);
   virtual void DrawContent(nux::GraphicsEngine& GfxContext, bool force_draw);
@@ -81,6 +81,7 @@ private:
   void SetupUBusManagerInterests();
 
   void OnActiveChanged(PanelIndicatorEntryView* view, bool is_active);
+  void OnEntryViewAdded(PanelIndicatorEntryView* view);
   void OnViewOpened(BamfMatcher* matcher, BamfView* view);
   void OnViewClosed(BamfMatcher* matcher, BamfView* view);
   void OnApplicationClosed(BamfApplication* app);
@@ -92,26 +93,25 @@ private:
   void OnSpreadTerminate();
   void OnExpoInitiate();
   void OnExpoTerminate();
-  void OnWindowMinimized(guint32 xid);
-  void OnWindowUnminimized(guint32 xid);
-  void OnWindowUnmapped(guint32 xid);
-  void OnWindowMapped(guint32 xid);
-  void OnWindowMaximized(guint32 xid);
-  void OnWindowRestored(guint32 xid);
-  void OnWindowMoved(guint32 xid);
-  void OnWindowDecorated(guint32 xid);
-  void OnWindowUndecorated(guint32 xid);
+  void OnWindowMinimized(Window xid);
+  void OnWindowUnminimized(Window xid);
+  void OnWindowUnmapped(Window xid);
+  void OnWindowMapped(Window xid);
+  void OnWindowMaximized(Window xid);
+  void OnWindowRestored(Window xid);
+  void OnWindowMoved(Window xid);
 
   void OnMaximizedActivate(int x, int y);
   void OnMaximizedRestore(int x, int y);
   void OnMaximizedLower(int x, int y);
+  void OnMaximizedShowActionMenu(int x, int y);
   void OnMaximizedGrabStart(int x, int y);
   void OnMaximizedGrabMove(int x, int y);
   void OnMaximizedGrabEnd(int x, int y);
 
   void FullRedraw();
   std::string GetCurrentTitle() const;
-  void Refresh(bool force = false);
+  bool Refresh(bool force = false);
 
   void UpdateTitleTexture(cairo_t *cr_real, nux::Geometry const& geo, std::string const& label) const;
 
@@ -120,7 +120,6 @@ private:
 
   void OnPanelViewMouseEnter(int x, int y, unsigned long mouse_button_state, unsigned long special_keys_state);
   void OnPanelViewMouseLeave(int x, int y, unsigned long mouse_button_state, unsigned long special_keys_state);
-  void OnPanelViewMouseMove(int x, int y, int dx, int dy, unsigned long mouse_button_state, unsigned long special_keys_state);
 
   BamfWindow* GetBamfWindowForXid(Window xid) const;
 
@@ -150,6 +149,7 @@ private:
   void StartFadeOut(int duration = -1);
   void OnFadeAnimatorUpdated(double opacity);
 
+  menu::Manager::Ptr const& menu_manager_;
   glib::Object<BamfMatcher> matcher_;
 
   nux::TextureLayer* title_layer_;
@@ -163,10 +163,8 @@ private:
   bool is_maximized_;
 
   PanelIndicatorEntryView* last_active_view_;
-  glib::Object<BamfApplication> new_application_;
-
-  std::map<Window, bool> decor_map_;
   std::set<Window> maximized_set_;
+  glib::Object<BamfApplication> new_application_;
   std::list<glib::Object<BamfApplication>> new_apps_;
   std::string panel_title_;
   nux::Geometry last_geo_;
@@ -183,12 +181,6 @@ private:
   nux::Geometry monitor_geo_;
   const std::string desktop_name_;
 
-  int menus_fadein_;
-  int menus_fadeout_;
-  int menus_discovery_;
-  int menus_discovery_fadein_;
-  int menus_discovery_fadeout_;
-
   glib::Signal<void, BamfMatcher*, BamfView*> view_opened_signal_;
   glib::Signal<void, BamfMatcher*, BamfView*> view_closed_signal_;
   glib::Signal<void, BamfMatcher*, BamfView*, BamfView*> active_win_changed_signal_;
@@ -203,6 +195,7 @@ private:
   nux::animation::AnimateValue<double> opacity_animator_;
 };
 
-}
+} // namespace panel
+} // namespace unity
 
 #endif

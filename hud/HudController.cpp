@@ -369,8 +369,7 @@ void Controller::ShowHud()
   StartShowHideTimeline();
 
   // hide the launcher
-  GVariant* message_data = g_variant_new("(b)", TRUE);
-  ubus.SendMessage(UBUS_LAUNCHER_LOCK_HIDE, message_data);
+  ubus.SendMessage(UBUS_LAUNCHER_LOCK_HIDE, glib::Variant(true));
 
   auto const& view_content_geometry = view_->GetContentGeometry();
   GVariant* info = g_variant_new(UBUS_OVERLAY_FORMAT_STRING, "hud", FALSE, monitor_index_,
@@ -409,14 +408,18 @@ void Controller::HideHud()
   window_->EnableInputWindow(false, "Hud", true, false);
   visible_ = false;
 
+  auto& wc = nux::GetWindowCompositor();
+  auto *key_focus_area = wc.GetKeyFocusArea();
+  if (key_focus_area && key_focus_area->IsChildOf(view_))
+    wc.SetKeyFocusArea(nullptr, nux::KEY_NAV_NONE);
+
   WindowManager::Default().RestoreInputFocus();
-  nux::GetWindowCompositor().SetKeyFocusArea(NULL, nux::KEY_NAV_NONE);
+
   StartShowHideTimeline();
   hud_service_.CloseQuery();
 
   //unhide the launcher
-  GVariant* message_data = g_variant_new("(b)", FALSE);
-  ubus.SendMessage(UBUS_LAUNCHER_LOCK_HIDE, message_data);
+  ubus.SendMessage(UBUS_LAUNCHER_LOCK_HIDE, glib::Variant(false));
 
   auto const& view_content_geometry = view_->GetContentGeometry();
   GVariant* info = g_variant_new(UBUS_OVERLAY_FORMAT_STRING, "hud", FALSE, monitor_index_,
@@ -505,9 +508,9 @@ std::string Controller::GetName() const
   return "HudController";
 }
 
-void Controller::AddProperties(GVariantBuilder* builder)
+void Controller::AddProperties(debug::IntrospectionData& introspection)
 {
-  variant::BuilderWrapper(builder)
+  introspection
     .add(window_ ? window_->GetGeometry() : nux::Geometry())
     .add("ideal_monitor", GetIdealMonitor())
     .add("visible", visible_)

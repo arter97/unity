@@ -28,6 +28,7 @@
 #include "HudIcon.h"
 #include "HudButton.h"
 #include "HudAbstractView.h"
+#include "unity-shared/BackgroundEffectHelper.h"
 #include "unity-shared/OverlayRenderer.h"
 #include "unity-shared/OverlayWindowButtons.h"
 #include "unity-shared/SearchBar.h"
@@ -94,7 +95,7 @@ private:
   void SelectLastFocusedButton();
 
   std::string GetName() const;
-  void AddProperties(GVariantBuilder* builder);
+  void AddProperties(debug::IntrospectionData&);
   IntrospectableList GetIntrospectableChildren();
 
 private:

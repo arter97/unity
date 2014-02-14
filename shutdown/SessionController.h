@@ -49,10 +49,12 @@ public:
 
   bool Visible() const;
 
+  void LockScreen() const;
+
 protected:
   // Introspectable
   std::string GetName() const;
-  void AddProperties(GVariantBuilder* builder);
+  void AddProperties(debug::IntrospectionData&);
 
 private:
   friend class TestSessionController;

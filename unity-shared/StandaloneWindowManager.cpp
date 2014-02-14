@@ -25,7 +25,6 @@
 #include "UScreen.h"
 
 #include <NuxCore/Logger.h>
-#include <UnityCore/Variant.h>
 
 // Entirely stubs for now, unless we need this functionality at some point
 
@@ -73,13 +72,13 @@ StandaloneWindow::StandaloneWindow(Window xid)
   maximized.SetSetterFunction([this] (bool value) {
     if (maximized() == value)
       return false;
-
+ 
     v_maximized = value;
     h_maximized = value;
     decorated = !value;
     return true;
   });
-
+ 
   v_maximized.changed.connect([this] (bool value) { maximized.changed.emit(maximized()); });
   h_maximized.changed.connect([this] (bool value) { maximized.changed.emit(maximized()); });
 }
@@ -131,6 +130,12 @@ std::vector<Window> StandaloneWindowManager::GetWindowsInStackingOrder() const
   return ret;
 }
 
+bool StandaloneWindowManager::IsTopWindowFullscreenOnMonitorWithMouse() const
+{
+  // TODO
+  return false;
+}
+
 bool StandaloneWindowManager::IsWindowMaximized(Window window_id) const
 {
   auto window = GetWindowByXid(window_id);
@@ -145,16 +150,16 @@ bool StandaloneWindowManager::IsWindowVerticallyMaximized(Window window_id) cons
   auto window = GetWindowByXid(window_id);
   if (window)
     return window->v_maximized;
-
+ 
   return false;
 }
-
+ 
 bool StandaloneWindowManager::IsWindowHorizontallyMaximized(Window window_id) const
 {
   auto window = GetWindowByXid(window_id);
   if (window)
     return window->h_maximized;
-
+ 
   return false;
 }
 
@@ -264,69 +269,24 @@ bool StandaloneWindowManager::InShowDesktop() const
   return in_show_desktop_;
 }
 
-void StandaloneWindowManager::Decorate(Window window_id) const
-{
-  auto window = GetWindowByXid(window_id);
-  if (window)
-    window->decorated = window->has_decorations();
-}
-
-void StandaloneWindowManager::Undecorate(Window window_id) const
-{
-  auto window = GetWindowByXid(window_id);
-  if (window)
-    window->decorated = false;
-}
-
 void StandaloneWindowManager::Maximize(Window window_id)
 {
   auto window = GetWindowByXid(window_id);
   if (window)
+  {
     window->maximized = true;
-}
-
-void StandaloneWindowManager::LeftMaximize(Window window_id)
-{
-  auto window = GetWindowByXid(window_id);
-
-  if (!window)
-    return;
-
-  /* Let's compute the area where the window should be put */
-  auto workarea = GetWorkAreaGeometry(window_id);
-  workarea.width /= 2;
-
-  if (window->maximized)
-    window->maximized = false;
-
-  window->v_maximized = true;
-  MoveResizeWindow(window_id, workarea);
-}
-
-void StandaloneWindowManager::RightMaximize(Window window_id)
-{
-  auto window = GetWindowByXid(window_id);
-
-  if (!window)
-    return;
-
-  /* Let's compute the area where the window should be put */
-  auto workarea = GetWorkAreaGeometry(window_id);
-  workarea.width /= 2;
-  workarea.x += workarea.width;
-
-  if (window->maximized)
-    window->maximized = false;
-
-  window->v_maximized = true;
-  MoveResizeWindow(window_id, workarea);
+    window->decorated = false;
+  }
 }
 
 void StandaloneWindowManager::Restore(Window window_id)
 {
   auto window = GetWindowByXid(window_id);
   if (window)
+  {
     window->maximized = false;
+    window->decorated = true;
+  }
 }
 
 void StandaloneWindowManager::RestoreAt(Window window_id, int x, int y)
@@ -345,7 +305,7 @@ void StandaloneWindowManager::UnMinimize(Window window_id)
     window->minimized = false;
 
     if (window->maximized)
-      Undecorate(window_id);
+      window->decorated = false;
   }
 }
 
@@ -357,7 +317,7 @@ void StandaloneWindowManager::Minimize(Window window_id)
     window->minimized = true;
 
     if (window->maximized)
-      Decorate(window_id);
+      window->decorated = true;
   }
 }
 
@@ -613,6 +573,17 @@ std::string StandaloneWindowManager::GetWindowName(Window window_id) const
   return "";
 }
 
+std::string StandaloneWindowManager::GetStringProperty(Window, Atom) const
+{
+  return std::string();
+}
+
+std::vector<long> StandaloneWindowManager::GetCardinalProperty(Window, Atom) const
+{
+  return std::vector<long>();
+}
+
+
 // Mock functions
 
 void StandaloneWindowManager::ResetStatus()
@@ -668,8 +639,6 @@ void StandaloneWindowManager::AddStandaloneWindow(StandaloneWindow::Ptr const& w
   window->visible.changed.connect([this, xid] (bool v) {v ? window_shown(xid) : window_hidden(xid);});
   window->maximized.changed.connect([this, xid] (bool v) {v ? window_maximized(xid) : window_restored(xid);});
   window->minimized.changed.connect([this, xid] (bool v) {v ? window_minimized(xid) : window_unminimized(xid);});
-  window->decorated.changed.connect([this, xid] (bool v) {v ? window_decorated(xid) : window_undecorated(xid);});
-  window->has_decorations.changed.connect([this, xid] (bool v) {v ? window_decorated(xid) : window_undecorated(xid);});
   window->resized.connect([this, xid] { window_resized(xid); });
   window->moved.connect([this, xid] { window_moved(xid); });
 
@@ -698,12 +667,11 @@ void StandaloneWindowManager::SetCurrentViewport(nux::Point const& vp)
   current_vp_ = vp;
 }
 
-void StandaloneWindowManager::AddProperties(GVariantBuilder* builder)
+void StandaloneWindowManager::AddProperties(debug::IntrospectionData& wrapper)
 {
-  unity::variant::BuilderWrapper wrapper(builder);
   wrapper.add(GetScreenGeometry())
          .add("workspace_count", WorkspaceCount())
-         .add("active_window", (uint64_t)GetActiveWindow())
+         .add("active_window", GetActiveWindow())
          .add("screen_grabbed", IsScreenGrabbed())
          .add("scale_active", IsScaleActive())
          .add("scale_active_for_group", IsScaleActiveForGroup())

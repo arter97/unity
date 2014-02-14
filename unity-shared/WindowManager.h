@@ -33,6 +33,7 @@
 #include <X11/Xlib.h>
 #else
 typedef unsigned long Window;
+typedef unsigned long Atom;
 #endif
 
 #include "unity-shared/Introspectable.h"
@@ -76,10 +77,11 @@ public:
   virtual Window GetActiveWindow() const = 0;
   virtual std::vector<Window> GetWindowsInStackingOrder() const = 0;
 
+  virtual bool IsTopWindowFullscreenOnMonitorWithMouse() const = 0;
+
   virtual bool IsWindowMaximized(Window window_id) const = 0;
   virtual bool IsWindowVerticallyMaximized(Window window_id) const = 0;
   virtual bool IsWindowHorizontallyMaximized(Window window_id) const = 0;
-  virtual bool IsWindowMaximizable(Window window_id) const = 0;
   virtual bool IsWindowDecorated(Window window_id) const = 0;
   virtual bool IsWindowOnCurrentDesktop(Window window_id) const = 0;
   virtual bool IsWindowObscured(Window window_id) const = 0;
@@ -89,14 +91,14 @@ public:
   virtual bool IsWindowClosable(Window window_id) const = 0;
   virtual bool IsWindowMinimized(Window window_id) const = 0;
   virtual bool IsWindowMinimizable(Window window_id) const = 0;
+  virtual bool IsWindowMaximizable(Window window_id) const = 0;
   virtual bool HasWindowDecorations(Window window_id) const = 0;
 
   virtual void ShowDesktop() = 0;
   virtual bool InShowDesktop() const = 0;
 
+  virtual void ShowActionMenu(Time, Window, unsigned button, nux::Point const&) = 0;
   virtual void Maximize(Window window_id) = 0;
-  virtual void LeftMaximize(Window window_id) = 0;
-  virtual void RightMaximize(Window window_id) = 0;
   virtual void Restore(Window window_id) = 0;
   virtual void RestoreAt(Window window_id, int x, int y) = 0;
   virtual void Minimize(Window window_id) = 0;
@@ -126,14 +128,12 @@ public:
   virtual bool ScaleWindowGroup(std::vector<Window> const& windows,
                                 int state, bool force) = 0;
 
-  virtual void Decorate(Window window_id) const {};
-  virtual void Undecorate(Window window_id) const {};
-
   virtual bool IsScreenGrabbed() const = 0;
   virtual bool IsViewPortSwitchStarted() const = 0;
 
   virtual void MoveResizeWindow(Window window_id, nux::Geometry geometry) = 0;
   virtual void StartMove(Window window_id, int x, int y) = 0;
+  virtual void UnGrabMousePointer(Time, int button, int x, int y) = 0;
 
   virtual int GetWindowMonitor(Window window_id) const = 0;
   virtual nux::Geometry GetWindowGeometry(Window window_id) const = 0;
@@ -160,6 +160,9 @@ public:
 
   virtual std::string GetWindowName(Window window_id) const = 0;
 
+  virtual std::string GetStringProperty(Window, Atom) const = 0;
+  virtual std::vector<long> GetCardinalProperty(Window, Atom) const = 0;
+
   // Nux Modifiers, Nux Keycode (= X11 KeySym)
   nux::Property<std::pair<unsigned, unsigned>> close_window_key;
   nux::Property<nux::Color> average_color;
@@ -178,8 +181,6 @@ public:
   sigc::signal<void, Window> window_resized;
   sigc::signal<void, Window> window_moved;
   sigc::signal<void, Window> window_focus_changed;
-  sigc::signal<void, Window> window_decorated;
-  sigc::signal<void, Window> window_undecorated;
 
   sigc::signal<void> initiate_spread;
   sigc::signal<void> terminate_spread;
@@ -195,7 +196,7 @@ public:
 
 protected:
   std::string GetName() const;
-  virtual void AddProperties(GVariantBuilder* builder) = 0;
+  virtual void AddProperties(debug::IntrospectionData& introspection) = 0;
 
 };
 

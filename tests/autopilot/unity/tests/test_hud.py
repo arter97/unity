@@ -442,10 +442,10 @@ class HudBehaviorTests(HudTestsBase):
         self.unity.hud.ensure_visible()
         current_monitor = self.unity.hud.monitor
 
-        (x,y,w,h) = self.unity.hud.geometry
-        (screen_x,screen_y,screen_w,screen_h) = self.display.get_screen_geometry(current_monitor)
-
-        self.mouse.move(x + w + (screen_w-((screen_x-x)+w))/2, y + h + (screen_h-((screen_y-y)+h))/2)
+        #Click bottom right of the screen
+        w = self.display.get_screen_width() - 1
+        h = self.display.get_screen_height() - 1
+        self.mouse.move(w,h)
         self.mouse.click()
 
         self.assertThat(self.unity.hud.visible, Eventually(Equals(False)))
@@ -463,8 +463,8 @@ class HudBehaviorTests(HudTestsBase):
         self.unity.hud.ensure_visible()
 
         #Click bottom right of the screen
-        w = self.display.get_screen_width()
-        h = self.display.get_screen_height()
+        w = self.display.get_screen_width() - 1
+        h = self.display.get_screen_height() - 1
         self.mouse.move(w,h)
         self.mouse.click()
 
@@ -495,11 +495,20 @@ class HudBehaviorTests(HudTestsBase):
         self.keyboard.type("e")
         self.assertThat(self.unity.hud.view.selected_button, Eventually(Equals(1)))
 
+    def test_hud_does_not_open_when_fullscreen_window(self):
+        """ The Hud must not open if a window is fullscreen. """
+        gedit = self.process_manager.start_app("Text Editor")
+        self.keyboard.press_and_release('F11')
+        self.keybinding("hud/reveal")
+        self.addCleanup(self.unity.hud.ensure_hidden)
+
+        self.assertThat(self.unity.hud.visible, Eventually(Equals(False)))
+
 
 class HudLauncherInteractionsTests(HudTestsBase):
 
-    launcher_modes = [('Launcher autohide', {'launcher_autohide': False}),
-                      ('Launcher never hide', {'launcher_autohide': True})]
+    launcher_modes = [('Launcher never hide', {'launcher_autohide': False}),
+                      ('Launcher autohide', {'launcher_autohide': True})]
 
     scenarios = multiply_scenarios(_make_monitor_scenarios(), launcher_modes)
 
@@ -578,7 +587,7 @@ class HudLockedLauncherInteractionsTests(HudTestsBase):
 
         self.unity.hud.ensure_visible()
 
-        self.assertThat(hud_icon.visible, Eventually(Equals(True)))
+        self.assertTrue(hud_icon.monitors_visibility[self.hud_monitor])
         self.assertTrue(hud_icon.is_on_monitor(self.hud_monitor))
         # For some reason the BFB icon is always visible :-/
         #bfb_icon.visible, Eventually(Equals(False)
@@ -590,9 +599,9 @@ class HudLockedLauncherInteractionsTests(HudTestsBase):
 
         for icon in self.unity.launcher.model.get_launcher_icons_for_monitor(self.hud_monitor):
             if isinstance(icon, HudLauncherIcon):
-                self.assertThat(icon.desaturated, Eventually(Equals(False)))
+                self.assertFalse(icon.monitors_desaturated[self.hud_monitor])
             else:
-                self.assertThat(icon.desaturated, Eventually(Equals(True)))
+                self.assertTrue(icon.monitors_desaturated[self.hud_monitor])
 
     def test_hud_launcher_icon_click_hides_hud(self):
         """Clicking the Hud Icon should hide the HUD"""
@@ -609,11 +618,11 @@ class HudLockedLauncherInteractionsTests(HudTestsBase):
 
 class HudVisualTests(HudTestsBase):
 
-    launcher_modes = [('Launcher autohide', {'launcher_autohide': False}),
-                      ('Launcher never hide', {'launcher_autohide': True})]
+    launcher_modes = [('Launcher never hide', {'launcher_autohide': False}),
+                      ('Launcher autohide', {'launcher_autohide': True})]
 
-    launcher_screen = [('Launcher on primary monitor', {'launcher_primary_only': False}),
-                       ('Launcher on all monitors', {'launcher_primary_only': True})]
+    launcher_screen = [('Launcher on all monitors', {'launcher_primary_only': False}),
+                       ('Launcher on primary monitor', {'launcher_primary_only': True})]
 
     scenarios = multiply_scenarios(_make_monitor_scenarios(), launcher_modes, launcher_screen)
 
@@ -664,15 +673,15 @@ class HudVisualTests(HudTestsBase):
         hud_embedded_icon = self.unity.hud.get_embedded_icon()
 
         if self.unity.hud.is_locked_launcher:
-            self.assertThat(hud_launcher_icon.visible, Eventually(Equals(True)))
+            self.assertTrue(hud_launcher_icon.monitors_visibility[self.hud_monitor])
             self.assertTrue(hud_launcher_icon.is_on_monitor(self.hud_monitor))
-            self.assertTrue(hud_launcher_icon.active)
+            self.assertTrue(hud_launcher_icon.monitors_active[self.hud_monitor])
             self.assertThat(hud_launcher_icon.monitor, Equals(self.hud_monitor))
             self.assertFalse(hud_launcher_icon.desaturated)
             self.assertThat(hud_embedded_icon, Equals(None))
         else:
             self.assertThat(hud_launcher_icon.visible, Eventually(Equals(False)))
-            self.assertFalse(hud_launcher_icon.active)
+            self.assertFalse(hud_launcher_icon.monitors_active[self.hud_monitor])
             # the embedded icon has no visible property.
             self.assertThat(hud_embedded_icon, NotEquals(None))
 
@@ -811,3 +820,17 @@ class HudCrossMonitorsTests(HudTestsBase):
             self.mouse.click()
 
             self.assertThat(self.unity.hud.visible, Eventually(Equals(False)))
+
+    def test_hud_opens_on_second_monitor_if_first_has_fullscreen_window(self):
+        """ The Hud must open if the mouse is over the second monitor while the
+            first monitor has a fullscreen window. """
+
+        gedit = self.process_manager.start_app("Text Editor")
+        monitor = gedit.get_windows()[0].monitor
+        self.keyboard.press_and_release('F11')
+
+        move_mouse_to_screen((monitor + 1) % self.display.get_num_screens())
+        self.keybinding("hud/reveal")
+        self.addCleanup(self.unity.hud.ensure_hidden)
+
+        self.assertThat(self.unity.hud.visible, Eventually(Equals(True)))

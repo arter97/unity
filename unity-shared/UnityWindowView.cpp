@@ -18,10 +18,9 @@
  *              Marco Trevisan <marco.trevisan@canonical.com>
  */
 
-#include <UnityCore/Variant.h>
-
 #include "UnityWindowView.h"
 #include <Nux/VLayout.h>
+#include "unity-shared/UnitySettings.h"
 #include "unity-shared/WindowManager.h"
 
 namespace unity {
@@ -34,9 +33,8 @@ UnityWindowView::UnityWindowView(NUX_FILE_LINE_DECL)
   , style(UnityWindowStyle::Get())
   , closable(false)
   , internal_layout_(nullptr)
+  , bg_helper_(this)
 {
-  bg_helper_.owner = this;
-
   live_background.SetGetterFunction([this] { return bg_helper_.enabled(); });
   live_background.SetSetterFunction([this] (bool e) {
     if (bg_helper_.enabled() != e)
@@ -60,6 +58,11 @@ UnityWindowView::~UnityWindowView()
 
   if (bounding_area_)
     bounding_area_->UnParentObject();
+}
+
+void UnityWindowView::SetBackgroundHelperGeometryGetter(BackgroundEffectHelper::GeometryGetterFunc const& func)
+{
+  bg_helper_.SetGeometryGetter(func);
 }
 
 nux::Area* UnityWindowView::FindAreaUnderMouse(const nux::Point& mouse, nux::NuxEventType etype)
@@ -181,6 +184,11 @@ nux::Geometry UnityWindowView::GetInternalBackground()
   return GetBackgroundGeometry().GetExpand(-offset, -offset);
 }
 
+nux::Geometry UnityWindowView::GetBlurredBackgroundGeometry()
+{
+  return GetBackgroundGeometry();
+}
+
 nux::ObjectPtr<nux::InputArea> UnityWindowView::GetBoundingArea()
 {
   if (!bounding_area_)
@@ -210,24 +218,21 @@ void UnityWindowView::Draw(nux::GraphicsEngine& GfxContext, bool force_draw)
   nux::Geometry const& internal_clip = GetInternalBackground();
   GfxContext.PushClippingRectangle(internal_clip); ++push;
 
-  nux::Geometry const& blur_geo = GetAbsoluteGeometry();
-
   if (BackgroundEffectHelper::blur_type != BLUR_NONE)
   {
-    bg_texture_ = bg_helper_.GetBlurRegion(blur_geo);
+    bg_texture_ = bg_helper_.GetBlurRegion();
   }
   else
   {
-    bg_texture_ = bg_helper_.GetRegion(blur_geo);
+    bg_texture_ = bg_helper_.GetRegion();
   }
 
   if (bg_texture_.IsValid())
   {
+    nux::Geometry const& bg_geo = GetBlurredBackgroundGeometry();
     nux::TexCoordXForm texxform_blur_bg;
     texxform_blur_bg.flip_v_coord = true;
     texxform_blur_bg.SetTexCoordType(nux::TexCoordXForm::OFFSET_COORD);
-    texxform_blur_bg.uoffset = base.x / static_cast<float>(blur_geo.width);
-    texxform_blur_bg.voffset = base.y / static_cast<float>(blur_geo.height);
 
     nux::ROPConfig rop;
     rop.Blend = false;
@@ -236,21 +241,33 @@ void UnityWindowView::Draw(nux::GraphicsEngine& GfxContext, bool force_draw)
 
 #ifndef NUX_OPENGLES_20
     if (GfxContext.UsingGLSLCodePath())
-      gPainter.PushDrawCompositionLayer(GfxContext, base,
+    {
+      auto temp_background_color = background_color();
+      auto blend_mode = nux::LAYER_BLEND_MODE_OVERLAY;
+
+      if (Settings::Instance().GetLowGfxMode())
+      {
+        temp_background_color.alpha = 1.0f;
+        blend_mode = nux::LAYER_BLEND_MODE_NORMAL;
+      }
+
+      gPainter.PushDrawCompositionLayer(GfxContext, bg_geo,
                                         bg_texture_,
                                         texxform_blur_bg,
                                         nux::color::White,
-                                        background_color, nux::LAYER_BLEND_MODE_OVERLAY,
+                                        temp_background_color,
+                                        blend_mode,
                                         true, rop);
+    }
     else
-      gPainter.PushDrawTextureLayer(GfxContext, base,
+      gPainter.PushDrawTextureLayer(GfxContext, bg_geo,
                                     bg_texture_,
                                     texxform_blur_bg,
                                     nux::color::White,
                                     true,
                                     rop);
 #else
-      gPainter.PushDrawCompositionLayer(GfxContext, base,
+      gPainter.PushDrawCompositionLayer(GfxContext, bg_geo,
                                         bg_texture_,
                                         texxform_blur_bg,
                                         nux::color::White,
@@ -411,10 +428,12 @@ std::string UnityWindowView::GetName() const
   return "UnityWindowView";
 }
 
-void UnityWindowView::AddProperties(GVariantBuilder* builder)
+void UnityWindowView::AddProperties(debug::IntrospectionData& introspection)
 {
-  unity::variant::BuilderWrapper(builder)
-    .add("bg-texture-is-valid", bg_texture_.IsValid());
+  introspection
+    .add("bg-texture-is-valid", bg_texture_.IsValid())
+    .add("closable", closable())
+    .add("close_geo", close_button_ ? close_button_->GetGeometry() : nux::Geometry());
 }
 
 

@@ -149,12 +149,22 @@ class DashRevealTests(DashTestCase):
         self.unity.dash.ensure_visible()
 
         #Click bottom right of the screen
-        w = self.display.get_screen_width()
-        h = self.display.get_screen_height()
+        w = self.display.get_screen_width() - 1
+        h = self.display.get_screen_height() - 1
         self.mouse.move(w,h)
         self.mouse.click()
 
         self.assertProperty(char_win, is_active=True)
+
+    def test_dash_does_not_open_when_fullscreen_window(self):
+        """ The Dash must not open if a window is fullscreen. """
+        gedit = self.process_manager.start_app("Text Editor")
+        self.keyboard.press_and_release('F11')
+
+        self.keybinding("dash/reveal")
+        self.addCleanup(self.unity.dash.ensure_hidden)
+
+        self.assertThat(self.unity.dash.visible, Eventually(Equals(False)))
 
 
 class DashRevealWithSpreadTests(DashTestCase):
@@ -310,7 +320,7 @@ class DashKeyNavTests(DashTestCase):
         self.assertThat(scopebar.active_scope, Eventually(Equals(focused_icon)))
 
         # scopebar should lose focus after activation.
-        self.assertThat(scopebar.focused_scope_icon, Eventually(Equals("")))
+        self.assertFalse(hasattr(scopebar, 'focused_scope_icon'))
 
     def test_focus_returns_to_searchbar(self):
         """This test makes sure that the focus is returned to the searchbar of the newly
@@ -326,7 +336,7 @@ class DashKeyNavTests(DashTestCase):
         self.keyboard.press_and_release("Enter")
 
         self.assertThat(scopebar.active_scope, Eventually(Equals(focused_icon)))
-        self.assertThat(scopebar.focused_scope_icon, Eventually(Equals("")))
+        self.assertFalse(hasattr(scopebar, 'focused_scope_icon'))
 
         # Now we make sure if the newly activated scope searchbar have the focus.
         self.keyboard.type("HasFocus")
@@ -789,7 +799,9 @@ class PreviewInvocationTests(DashTestCase):
         scope = self.unity.dash.reveal_application_scope()
         self.addCleanup(self.unity.dash.ensure_hidden)
 
-        # wait for "More suggestions" category
+        self.keyboard.type("Software Updater")
+
+        # wait for "Installed" category
         category = self.wait_for_category(scope, _("Installed"))
 
         # wait for some results
@@ -1364,3 +1376,17 @@ class DashCrossMonitorsTests(DashTestCase):
             self.mouse.click()
 
             self.assertThat(self.unity.dash.visible, Eventually(Equals(False)))
+
+    def test_dash_opens_on_second_monitor_if_first_has_fullscreen_window(self):
+        """ The Dash must open if the mouse is over the second monitor while the
+            first monitor has a fullscreen window. """
+
+        gedit = self.process_manager.start_app("Text Editor")
+        monitor = gedit.get_windows()[0].monitor
+        self.keyboard.press_and_release('F11')
+
+        move_mouse_to_screen((monitor + 1) % self.display.get_num_screens())
+        self.keybinding("dash/reveal")
+        self.addCleanup(self.unity.dash.ensure_hidden)
+
+        self.assertThat(self.unity.dash.visible, Eventually(Equals(True)))

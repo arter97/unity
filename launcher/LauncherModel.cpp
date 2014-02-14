@@ -22,7 +22,6 @@
 #include "AbstractLauncherIcon.h"
 
 #include <UnityCore/GLibWrapper.h>
-#include <UnityCore/Variant.h>
 
 namespace unity
 {
@@ -38,19 +37,23 @@ std::string LauncherModel::GetName() const
   return "LauncherModel";
 }
 
-void LauncherModel::AddProperties(GVariantBuilder* builder)
+void LauncherModel::AddProperties(debug::IntrospectionData& introspection)
 {
-  unity::variant::BuilderWrapper(builder)
+  introspection
   .add("selection", selection_);
 }
 
 unity::debug::Introspectable::IntrospectableList LauncherModel::GetIntrospectableChildren()
 {
+  int order = 0;
   introspection_results_.clear();
 
   for (auto icon : _inner)
     if (!icon->removed)
+    {
+      icon->SetOrder(++order);
       introspection_results_.push_back(icon.GetPointer());
+    }
 
   return introspection_results_;
 }

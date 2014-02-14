@@ -19,13 +19,16 @@ include_directories (.. ../services ../UnityCore ${UNITY_SRC} ${CMAKE_BINARY_DIR
 set (UNITY_SHARED_SOURCES
      ApplicationManager.cpp
      BGHash.cpp
+     ConfigParser.cpp
      CoverArt.cpp
      BackgroundEffectHelper.cpp
      DashStyle.cpp
      DebugDBusInterface.cpp
+     DecorationStyle.cpp
      DefaultThumbnailProvider.cpp
      DeltaRestrainment.cpp
      DesktopApplicationManager.cpp
+     EMConverter.cpp
      GnomeFileManager.cpp
      FontSettings.cpp
      GraphicsUtils.cpp
@@ -36,9 +39,11 @@ set (UNITY_SHARED_SOURCES
      IconTextureSource.cpp
      Introspectable.cpp
      IntrospectableWrappers.cpp
+     IntrospectionData.cpp
      JSONParser.cpp
      LayoutSystem.cpp
      LineSeparator.cpp
+     MenuManager.cpp
      OverlayRenderer.cpp
      OverlayWindowButtons.cpp
      PanelStyle.cpp
@@ -46,6 +51,7 @@ set (UNITY_SHARED_SOURCES
      PlacesOverlayVScrollBar.cpp
      PreviewStyle.cpp
      RatingsButton.cpp
+     RawPixel.cpp
      ResizingBaseWindow.cpp
      SearchBar.cpp
      SearchBarSpinner.cpp
@@ -91,12 +97,28 @@ add_pch(pch/unity-shared_pch.hh unity-shared)
 
 if (ENABLE_X_SUPPORT)
   # compiz
-  set (UNITY_SHARED_COMPIZ_SOURCES
-    PluginAdapter.cpp
-    )
-  add_library (unity-shared-compiz STATIC ${UNITY_SHARED_COMPIZ_SOURCES})
-  target_link_libraries (unity-shared-compiz ${LIBS})
 
+  set (UNITY_SHARED_COMPIZ_SOURCES
+    CompizUtils.cpp
+    PluginAdapter.cpp
+    GnomeKeyGrabber.cpp
+    )
+
+  find_package (PkgConfig)
+  pkg_check_modules (COMPIZ REQUIRED compiz)
+  pkg_check_modules (COMPIZ_OPENGL REQUIRED compiz-opengl)
+
+  add_library (unity-shared-compiz STATIC ${UNITY_SHARED_COMPIZ_SOURCES})
+
+  # This makes linker to include library dir in RUNPATH
+  find_library (COMPIZ_LIB compiz_core ${COMPIZ_LIBDIR})
+  find_library (COMPIZ_OPENGL_LIB opengl ${COMPIZ_OPENGL_LIBDIR})
+  target_link_libraries (unity-shared-compiz
+                         ${LIBS}
+                         ${COMPIZ_LIB}
+                         ${COMPIZ_LDFLAGS}
+                         ${COMPIZ_OPENGL_LIB}
+                         ${COMPIZ_OPENGL_LDFLAGS})
   add_dependencies (unity-shared-compiz unity-shared)
 
   # bamf application manager
@@ -121,4 +143,8 @@ add_dependencies (unity-shared-standalone unity-shared)
 add_executable (app-manager StandaloneAppManager.cpp)
 add_dependencies (app-manager  unity-shared unity-shared-bamf unity-shared-standalone)
 target_link_libraries (app-manager  unity-shared unity-shared-bamf  unity-shared-standalone)
+
+add_executable (decorations-style StandaloneDecorationStyle.cpp)
+add_dependencies (decorations-style unity-shared)
+target_link_libraries (decorations-style unity-shared)
 

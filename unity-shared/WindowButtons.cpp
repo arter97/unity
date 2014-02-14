@@ -24,7 +24,6 @@
 #include <array>
 
 #include <UnityCore/GLibWrapper.h>
-#include <UnityCore/Variant.h>
 
 #include "WindowButtons.h"
 #include "WindowButtonPriv.h"
@@ -156,10 +155,10 @@ void WindowButton::LoadImages()
   normal_tex_ = style.GetWindowButton(type_, panel::WindowState::NORMAL);
   prelight_tex_ = style.GetWindowButton(type_, panel::WindowState::PRELIGHT);
   pressed_tex_ = style.GetWindowButton(type_, panel::WindowState::PRESSED);
-  unfocused_tex_ = style.GetWindowButton(type_, panel::WindowState::UNFOCUSED);
+  unfocused_tex_ = style.GetWindowButton(type_, panel::WindowState::BACKDROP);
   disabled_tex_ = style.GetWindowButton(type_, panel::WindowState::DISABLED);
-  unfocused_prelight_tex_ = style.GetWindowButton(type_, panel::WindowState::UNFOCUSED_PRELIGHT);
-  unfocused_pressed_tex_ = style.GetWindowButton(type_, panel::WindowState::UNFOCUSED_PRESSED);
+  unfocused_prelight_tex_ = style.GetWindowButton(type_, panel::WindowState::BACKDROP_PRELIGHT);
+  unfocused_pressed_tex_ = style.GetWindowButton(type_, panel::WindowState::BACKDROP_PRESSED);
   normal_dash_tex_ = GetDashWindowButton(type_, panel::WindowState::NORMAL);
   prelight_dash_tex_ = GetDashWindowButton(type_, panel::WindowState::PRELIGHT);
   pressed_dash_tex_ = GetDashWindowButton(type_, panel::WindowState::PRESSED);
@@ -206,7 +205,7 @@ std::string WindowButton::GetName() const
   return "WindowButton";
 }
 
-void WindowButton::AddProperties(GVariantBuilder* builder)
+void WindowButton::AddProperties(debug::IntrospectionData& introspection)
 {
   std::string type_name;
   std::string state_name;
@@ -225,6 +224,8 @@ void WindowButton::AddProperties(GVariantBuilder* builder)
     case panel::WindowButtonType::UNMAXIMIZE:
       type_name = "Unmaximize";
       break;
+    default:
+      break;
   }
 
   switch (visual_state_)
@@ -239,7 +240,7 @@ void WindowButton::AddProperties(GVariantBuilder* builder)
       state_name = "normal";
   }
 
-  variant::BuilderWrapper(builder).add(GetAbsoluteGeometry())
+  introspection.add(GetAbsoluteGeometry())
                                   .add("type", type_name)
                                   .add("visible", IsVisible() && Parent()->opacity() != 0.0f)
                                   .add("sensitive", Parent()->GetInputEventSensitivity())
@@ -262,17 +263,17 @@ WindowButtons::WindowButtons()
   controlled_window.changed.connect(sigc::mem_fun(this, &WindowButtons::OnControlledWindowChanged));
   focused.changed.connect(sigc::hide(sigc::mem_fun(this, &WindowButtons::QueueDraw)));
 
-  auto lambda_enter = [&](int x, int y, unsigned long button_flags, unsigned long key_flags)
+  auto lambda_enter = [this](int x, int y, unsigned long button_flags, unsigned long key_flags)
   {
     mouse_enter.emit(x, y, button_flags, key_flags);
   };
 
-  auto lambda_leave = [&](int x, int y, unsigned long button_flags, unsigned long key_flags)
+  auto lambda_leave = [this](int x, int y, unsigned long button_flags, unsigned long key_flags)
   {
     mouse_leave.emit(x, y, button_flags, key_flags);
   };
 
-  auto lambda_moved = [&](int x, int y, int dx, int dy, unsigned long button_flags, unsigned long key_flags)
+  auto lambda_moved = [this](int x, int y, int dx, int dy, unsigned long button_flags, unsigned long key_flags)
   {
     mouse_move.emit(x, y, dx, dy, button_flags, key_flags);
   };
@@ -354,9 +355,9 @@ nux::Area* WindowButtons::FindAreaUnderMouse(const nux::Point& mouse, nux::NuxEv
 
 void WindowButtons::OnCloseClicked(nux::Button *button)
 {
-  auto win_button = dynamic_cast<internal::WindowButton*>(button);
+  auto win_button = static_cast<internal::WindowButton*>(button);
 
-  if (!win_button || !win_button->enabled())
+  if (!win_button->enabled())
     return;
 
   if (win_button->overlay_mode())
@@ -373,9 +374,9 @@ void WindowButtons::OnCloseClicked(nux::Button *button)
 
 void WindowButtons::OnMinimizeClicked(nux::Button *button)
 {
-  auto win_button = dynamic_cast<internal::WindowButton*>(button);
+  auto win_button = static_cast<internal::WindowButton*>(button);
 
-  if (!win_button || !win_button->enabled())
+  if (!win_button->enabled())
     return;
 
   if (!win_button->overlay_mode())
@@ -386,9 +387,9 @@ void WindowButtons::OnMinimizeClicked(nux::Button *button)
 
 void WindowButtons::OnRestoreClicked(nux::Button *button)
 {
-  auto win_button = dynamic_cast<internal::WindowButton*>(button);
+  auto win_button = static_cast<internal::WindowButton*>(button);
 
-  if (!win_button || !win_button->enabled())
+  if (!win_button->enabled())
     return;
 
   if (win_button->overlay_mode())
@@ -410,9 +411,9 @@ void WindowButtons::OnRestoreClicked(nux::Button *button)
 
 void WindowButtons::OnMaximizeClicked(nux::Button *button)
 {
-  auto win_button = dynamic_cast<internal::WindowButton*>(button);
+  auto win_button = static_cast<internal::WindowButton*>(button);
 
-  if (!win_button || !win_button->enabled())
+  if (!win_button->enabled())
     return;
 
   if (win_button->overlay_mode())
@@ -437,12 +438,7 @@ void WindowButtons::OnOverlayShown(GVariant* data)
   if (overlay_monitor != monitor())
   {
     for (auto area : GetChildren())
-    {
-      auto button = dynamic_cast<internal::WindowButton*>(area);
-
-      if (button)
-        button->enabled = false;
-    }
+      static_cast<internal::WindowButton*>(area)->enabled = false;
 
     return;
   }
@@ -451,24 +447,20 @@ void WindowButtons::OnOverlayShown(GVariant* data)
 
   for (auto area : GetChildren())
   {
-    auto button = dynamic_cast<internal::WindowButton*>(area);
+    auto button = static_cast<internal::WindowButton*>(area);
+    if (button->GetType() == panel::WindowButtonType::CLOSE)
+      button->enabled = true;
 
-    if (button)
-    {
-      if (button->GetType() == panel::WindowButtonType::CLOSE)
-        button->enabled = true;
+    if (button->GetType() == panel::WindowButtonType::UNMAXIMIZE)
+      restore_button = button;
 
-      if (button->GetType() == panel::WindowButtonType::UNMAXIMIZE)
-        restore_button = button;
+    if (button->GetType() == panel::WindowButtonType::MAXIMIZE)
+      maximize_button = button;
 
-      if (button->GetType() == panel::WindowButtonType::MAXIMIZE)
-        maximize_button = button;
+    if (button->GetType() == panel::WindowButtonType::MINIMIZE)
+      button->enabled = false;
 
-      if (button->GetType() == panel::WindowButtonType::MINIMIZE)
-        button->enabled = false;
-
-      button->overlay_mode = true;
-    }
+    button->overlay_mode = true;
   }
 
   if (restore_button && maximize_button)
@@ -509,12 +501,7 @@ void WindowButtons::OnOverlayHidden(GVariant* data)
   if (overlay_monitor != monitor())
   {
     for (auto area : GetChildren())
-    {
-      auto button = dynamic_cast<internal::WindowButton*>(area);
-
-      if (button)
-        button->enabled = true;
-    }
+      static_cast<internal::WindowButton*>(area)->enabled = true;
   }
 
   if (active_overlay_ != overlay_identity.Str())
@@ -525,27 +512,24 @@ void WindowButtons::OnOverlayHidden(GVariant* data)
   WindowManager& wm = WindowManager::Default();
   for (auto area : GetChildren())
   {
-    auto button = dynamic_cast<internal::WindowButton*>(area);
+    auto button = static_cast<internal::WindowButton*>(area);
 
-    if (button)
+    if (controlled_window())
     {
-      if (controlled_window())
-      {
-        if (button->GetType() == panel::WindowButtonType::CLOSE)
-          button->enabled = wm.IsWindowClosable(controlled_window());
+      if (button->GetType() == panel::WindowButtonType::CLOSE)
+        button->enabled = wm.IsWindowClosable(controlled_window());
 
-        if (button->GetType() == panel::WindowButtonType::MINIMIZE)
-          button->enabled = wm.IsWindowMinimizable(controlled_window());
-      }
-
-      if (button->GetType() == panel::WindowButtonType::UNMAXIMIZE)
-        restore_button = button;
-
-      if (button->GetType() == panel::WindowButtonType::MAXIMIZE)
-        maximize_button = button;
-
-      button->overlay_mode = false;
+      if (button->GetType() == panel::WindowButtonType::MINIMIZE)
+        button->enabled = wm.IsWindowMinimizable(controlled_window());
     }
+
+    if (button->GetType() == panel::WindowButtonType::UNMAXIMIZE)
+      restore_button = button;
+
+    if (button->GetType() == panel::WindowButtonType::MAXIMIZE)
+      maximize_button = button;
+
+    button->overlay_mode = false;
   }
 
   if (restore_button && maximize_button)
@@ -572,22 +556,19 @@ void WindowButtons::OnDashSettingsUpdated(FormFactor form_factor)
 
   for (auto area : GetChildren())
   {
-    auto button = dynamic_cast<internal::WindowButton*>(area);
+    auto button = static_cast<internal::WindowButton*>(area);
 
-    if (button)
-    {
-      if (!button->overlay_mode())
-        break;
+    if (!button->overlay_mode())
+      break;
 
-      if (button->GetType() == panel::WindowButtonType::UNMAXIMIZE)
-        restore_button = button;
+    if (button->GetType() == panel::WindowButtonType::UNMAXIMIZE)
+      restore_button = button;
 
-      if (button->GetType() == panel::WindowButtonType::MAXIMIZE)
-        maximize_button = button;
+    if (button->GetType() == panel::WindowButtonType::MAXIMIZE)
+      maximize_button = button;
 
-      if (restore_button && maximize_button)
-        break;
-    }
+    if (restore_button && maximize_button)
+      break;
   }
 
   if (restore_button && restore_button->overlay_mode() && maximize_button)
@@ -632,10 +613,7 @@ void WindowButtons::OnControlledWindowChanged(Window xid)
     WindowManager& wm = WindowManager::Default();
     for (auto area : GetChildren())
     {
-      auto button = dynamic_cast<internal::WindowButton*>(area);
-
-      if (!button)
-        continue;
+      auto button = static_cast<internal::WindowButton*>(area);
 
       if (button->GetType() == panel::WindowButtonType::CLOSE)
         button->enabled = wm.IsWindowClosable(xid);
@@ -646,20 +624,31 @@ void WindowButtons::OnControlledWindowChanged(Window xid)
   }
 }
 
+bool WindowButtons::IsMouseOwner()
+{
+  for (auto* area : GetChildren())
+  {
+    if (static_cast<internal::WindowButton*>(area)->IsMouseOwner())
+      return true;
+  }
+
+  return false;
+}
+
 std::string WindowButtons::GetName() const
 {
   return "WindowButtons";
 }
 
-void WindowButtons::AddProperties(GVariantBuilder* builder)
+void WindowButtons::AddProperties(debug::IntrospectionData& introspection)
 {
-  variant::BuilderWrapper(builder).add(GetAbsoluteGeometry())
-                                  .add("monitor", monitor())
-                                  .add("opacity", opacity())
-                                  .add("visible", opacity() != 0.0f)
-                                  .add("sensitive", GetInputEventSensitivity())
-                                  .add("focused", focused())
-                                  .add("controlled_window", (guint64)controlled_window());
+  introspection.add(GetAbsoluteGeometry())
+               .add("monitor", monitor())
+               .add("opacity", opacity())
+               .add("visible", opacity() != 0.0f)
+               .add("sensitive", GetInputEventSensitivity())
+               .add("focused", focused())
+               .add("controlled_window", controlled_window());
 }
 
 } // unity namespace

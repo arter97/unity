@@ -74,6 +74,11 @@ void Controller::Show(View::Mode mode)
   Show(mode, false);
 }
 
+void Controller::LockScreen() const
+{
+  manager_->LockScreen();
+}
+
 void Controller::Show(View::Mode mode, bool inhibitors)
 {
   EnsureView();
@@ -199,9 +204,9 @@ std::string Controller::GetName() const
   return "SessionController";
 }
 
-void Controller::AddProperties(GVariantBuilder* builder)
+void Controller::AddProperties(debug::IntrospectionData& introspection)
 {
-  variant::BuilderWrapper(builder)
+  introspection
     .add("visible", Visible());
 }
 

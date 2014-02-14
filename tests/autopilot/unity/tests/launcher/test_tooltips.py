@@ -41,7 +41,7 @@ class LauncherTooltipTests(LauncherTestCase):
         # subsequent tooltips reveal instantly, but hide on exit
         a, b = 0, 1
         while b < size:
-            self.mouse.move(self.icons[b].center_x, self.icons[b].center_y)
+            self.mouse.move(self.icons[b].center.x, self.icons[b].center.y)
             self.assertThat(lambda: self.icons[b].get_tooltip(), Eventually(NotEquals(None)))
             self.assertThat(self.icons[b].get_tooltip().active, Eventually(Equals(True)))
             self.assertThat(lambda: self.icons[a].get_tooltip(), Eventually(NotEquals(None)))
@@ -77,13 +77,13 @@ class LauncherTooltipTests(LauncherTestCase):
         self.assertEqual(self.get_reveal_behavior(bfb), self.NEVER)
 
         # ... nor did it timeout instant tooltips for other icons
-        self.assertEqual(self.get_reveal_behavior(other), self.DELAYED)
+        self.assertEqual(self.get_reveal_behavior(other), self.INSTANT)
 
     # Tooltip reveal types
     (INSTANT, DELAYED, NEVER) = range(3)
 
     def get_reveal_behavior(self, icon):
-        self.mouse.move(icon.center_x, icon.center_y)
+        self.mouse.move(icon.center.x, icon.center.y)
         tooltip = icon.get_tooltip()
         if tooltip and tooltip.active:
             return self.INSTANT

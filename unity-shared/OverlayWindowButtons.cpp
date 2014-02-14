@@ -36,13 +36,21 @@ OverlayWindowButtons::OverlayWindowButtons()
   : nux::BaseWindow("OverlayWindowButtons")
   , window_buttons_(new WindowButtons())
 {
-  window_buttons_->queue_draw.connect([&] (nux::Layout* /*layout*/) {
+  window_buttons_->queue_draw.connect([this] (nux::Layout* /*layout*/) {
     QueueDraw();
   });
 
   AddChild(window_buttons_.GetPointer());
   UpdateGeometry();
   SetBackgroundColor(nux::color::Transparent);
+}
+
+bool OverlayWindowButtons::IsVisibleOnMonitor(unsigned int monitor) const
+{
+  if (window_buttons_->monitor == monitor)
+    return true;
+  
+  return false;
 }
 
 void OverlayWindowButtons::UpdateGeometry()
@@ -98,7 +106,9 @@ std::string OverlayWindowButtons::GetName() const
   return "OverlayWindowButtons";
 }
 
-void OverlayWindowButtons::AddProperties(GVariantBuilder* builder)
-{}
+void OverlayWindowButtons::AddProperties(debug::IntrospectionData& introspection)
+{
+  introspection.add(GetAbsoluteGeometry());
+}
 
 } // namespace unity

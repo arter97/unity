@@ -53,8 +53,6 @@ public:
 
   LauncherIcon(IconType type);
 
-  bool SetTooltipText(std::string& target, std::string const& value);
-
   void    SetShortcut(guint64 shortcut);
 
   guint64 GetShortcut();
@@ -93,6 +91,8 @@ public:
   nux::Point3 GetSavedCenter(int monitor);
 
   int SortPriority();
+
+  void SetOrder(int order);
 
   virtual WindowList Windows() { return WindowList(); }
 
@@ -213,7 +213,7 @@ protected:
 
   std::string GetName() const;
 
-  void AddProperties(GVariantBuilder* builder);
+  void AddProperties(debug::IntrospectionData&);
 
   void FullyAnimateQuirkDelayed(guint ms, Quirk quirk, int monitor = -1);
 
@@ -326,6 +326,7 @@ private:
   float _present_urgency;
   float _progress;
   int _sort_priority;
+  int _order;
   int _last_monitor;
   nux::Color _background_color;
   nux::Color _glow_color;

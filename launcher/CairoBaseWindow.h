@@ -36,7 +36,7 @@ public:
   virtual void Show();
   virtual void Hide();
 
-  void NeedSoftRedraw() override;
+  void RedrawBlur();
   bool HasBlurredBackground() const;
 
 protected:

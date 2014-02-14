@@ -35,7 +35,7 @@ UScreen::UScreen()
 {
   size_changed_signal_.Connect(screen_, "size-changed", sigc::mem_fun(this, &UScreen::Changed));
   monitors_changed_signal_.Connect(screen_, "monitors-changed", sigc::mem_fun(this, &UScreen::Changed));
-  proxy_.Connect("Resuming", [&] (GVariant* data) { resuming.emit(); });
+  proxy_.Connect("Resuming", [this] (GVariant* data) { resuming.emit(); });
 
   Refresh();
 }
@@ -96,12 +96,23 @@ nux::Geometry UScreen::GetScreenGeometry()
   return nux::Geometry(0, 0, width, height); 
 }
 
+const std::string UScreen::GetMonitorName(int output_number) const
+{
+  auto const &output_name = glib::gchar_to_string(gdk_screen_get_monitor_plug_name(screen_, output_number));
+  if (output_name.empty())
+  {
+    LOG_ERROR(logger) << "Failed to get monitor name";
+  }
+
+  return output_name;
+}
+
 void UScreen::Changed(GdkScreen* screen)
 {
   if (refresh_idle_)
     return;
 
-  refresh_idle_.reset(new glib::Idle([&] () {
+  refresh_idle_.reset(new glib::Idle([this] () {
     Refresh();
     refresh_idle_.reset();
 

@@ -69,15 +69,15 @@ void CairoBaseWindow::Hide()
   animation::StartOrReverse(fade_animator_, animation::Direction::BACKWARD);
 }
 
-bool CairoBaseWindow::HasBlurredBackground() const
-{
-  return use_blurred_background_;
-}
-
-void CairoBaseWindow::NeedSoftRedraw()
+void CairoBaseWindow::RedrawBlur()
 {
   compute_blur_bkg_ = true;
   QueueDraw();
+}
+
+bool CairoBaseWindow::HasBlurredBackground() const
+{
+  return use_blurred_background_;
 }
 
 void CairoBaseWindow::Draw(nux::GraphicsEngine& gfxContext, bool forceDraw)

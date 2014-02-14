@@ -24,14 +24,14 @@
 #include <Nux/Nux.h>
 
 #include "launcher/EdgeBarrierController.h"
+#include "unity-shared/MenuManager.h"
 #include "unity-shared/Introspectable.h"
+
 namespace unity
 {
-
-class PanelView;
-
 namespace panel
 {
+class PanelView;
 
 class Controller : public sigc::trackable, public unity::debug::Introspectable
 {
@@ -39,34 +39,32 @@ public:
   typedef std::shared_ptr<Controller> Ptr;
   typedef std::vector<nux::ObjectPtr<PanelView>> PanelVector;
 
-  Controller(ui::EdgeBarrierController::Ptr const& barrier_controller);
+  Controller(menu::Manager::Ptr const&, ui::EdgeBarrierController::Ptr const&);
   ~Controller();
-
-  void FirstMenuShow();
-  void QueueRedraw();
 
   std::vector<Window> const& GetTrayXids() const;
   PanelVector& panels() const;
-  std::vector<nux::Geometry> GetGeometries() const;
+  std::vector<nux::Geometry> const& GetGeometries() const;
 
   nux::Property<int> launcher_width;
 
   // NOTE: nux::Property maybe?
   void SetOpacity(float opacity);
   void SetOpacityMaximizedToggle(bool enabled);
-  void SetMenuShowTimings(int fadein, int fadeout, int discovery, int discovery_fadein, int discovery_fadeout);
 
   float opacity() const;
 
   bool IsMouseInsideIndicator(nux::Point const& mouse_position) const;
 
+protected:
   std::string GetName() const;
-  void AddProperties(GVariantBuilder* builder);
+  void AddProperties(debug::IntrospectionData&);
+
 private:
   void OnScreenChanged(int primary_monitor, std::vector<nux::Geometry>& monitors);
 
   class Impl;
-  Impl* pimpl;
+  std::unique_ptr<Impl> pimpl;
 };
 
 }

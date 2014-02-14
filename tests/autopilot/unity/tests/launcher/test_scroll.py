@@ -44,7 +44,7 @@ class LauncherScrollTests(LauncherTestCase):
         launcher_instance = self.get_launcher()
         (x, y, w, h) = launcher_instance.geometry
 
-        icons = self.unity.launcher.model.get_launcher_icons()
+        icons = self.unity.launcher.model.get_launcher_icons_for_monitor(self.launcher_monitor)
         num_icons = self.unity.launcher.model.num_launcher_icons()
 
         last_icon = icons[num_icons - 1]
@@ -55,7 +55,7 @@ class LauncherScrollTests(LauncherTestCase):
 
         # Make sure the last icon is off the screen or else there is no
         # scrolling.
-        self.assertThat(last_icon.center_y, Eventually(GreaterThan(h)))
+        self.assertThat(last_icon.center.y, GreaterThan(h))
 
         # Autoscroll to the last icon
         launcher_instance.move_mouse_to_icon(last_icon, autoscroll_offset)
@@ -63,8 +63,8 @@ class LauncherScrollTests(LauncherTestCase):
         (x_fin, y_fin) = self.mouse.position()
 
         # Make sure we ended up in the center of the last icon
-        self.assertThat(x_fin, Equals(last_icon.center_x))
-        self.assertThat(y_fin, Equals(last_icon.center_y))
+        self.assertThat(x_fin, Equals(last_icon.center.x))
+        self.assertThat(y_fin, Equals(last_icon.center.y))
 
     def test_autoscrolling_from_top(self):
         """Test the autoscrolling from the top of the Launcher"""
@@ -76,18 +76,20 @@ class LauncherScrollTests(LauncherTestCase):
         launcher_instance = self.get_launcher()
         (x, y, w, h) = launcher_instance.geometry
 
-        icons = self.unity.launcher.model.get_launcher_icons()
+        icons = self.unity.launcher.model.get_launcher_icons_for_monitor(self.launcher_monitor)
         num_icons = self.unity.launcher.model.num_launcher_icons()
 
         first_icon = icons[0]
         last_icon = icons[num_icons - 1]
+
+        launcher_instance.move_mouse_over_launcher()
 
         # Move to the last icon in order to expand the top of the Launcher
         launcher_instance.move_mouse_to_icon(last_icon)
 
         # Make sure the first icon is off the screen or else there is no
         # scrolling.
-        self.assertThat(first_icon.center_y, Eventually(LessThan(y)))
+        self.assertThat(first_icon.center.y, LessThan(y))
         
         # Autoscroll to the first icon
         launcher_instance.move_mouse_to_icon(first_icon, autoscroll_offset)
@@ -95,5 +97,5 @@ class LauncherScrollTests(LauncherTestCase):
         (x_fin, y_fin) = self.mouse.position()
 
         # Make sure we ended up in the center of the first icon
-        self.assertThat(x_fin, Equals(first_icon.center_x))
-        self.assertThat(y_fin, Equals(first_icon.center_y))
+        self.assertThat(x_fin, Equals(first_icon.center.x))
+        self.assertThat(y_fin, Equals(first_icon.center.y))

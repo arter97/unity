@@ -19,6 +19,7 @@ include_directories (.. ../services ../UnityCore ${UNITY_SRC} ${CMAKE_BINARY_DIR
 set (PANEL_SOURCES
      PanelController.cpp
      PanelIndicatorEntryView.cpp
+     PanelIndicatorEntryDropdownView.cpp
      PanelIndicatorsView.cpp
      PanelMenuView.cpp
      PanelTitlebarGrabAreaView.cpp
@@ -30,8 +31,9 @@ add_library (panel-lib STATIC ${PANEL_SOURCES})
 add_dependencies (panel-lib unity-core-${UNITY_API_VERSION} unity-shared)
 add_pch(pch/panel_pch.hh panel-lib)
 
-# 
+#
 # Standalone variant
 #
 add_executable (panel StandalonePanel.cpp)
-target_link_libraries (panel panel-lib unity-shared unity-shared-standalone)
+find_library (COMPIZ_LIB compiz_core ${COMPIZ_LIBDIR})
+target_link_libraries (panel panel-lib unity-shared unity-shared-standalone ${COMPIZ_LIB})

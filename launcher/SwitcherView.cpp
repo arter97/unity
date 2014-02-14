@@ -19,12 +19,13 @@
 #include "config.h"
 #include "MultiMonitor.h"
 #include "SwitcherView.h"
+
+#include "unity-shared/AnimationUtils.h"
 #include "unity-shared/IconRenderer.h"
 #include "unity-shared/TimeUtil.h"
 #include "unity-shared/UScreen.h"
 
 #include <Nux/Nux.h>
-#include <UnityCore/Variant.h>
 
 namespace unity
 {
@@ -39,14 +40,13 @@ namespace
   unsigned int const VERTICAL_PADDING = 45;
   unsigned int const SPREAD_OFFSET = 100;
   unsigned int const EXTRA_ICON_SPACE = 10;
-  unsigned int const MAX_DIRECTIONS_CHANGED = 3; 
+  unsigned int const MAX_DIRECTIONS_CHANGED = 3;
 }
 
 NUX_IMPLEMENT_OBJECT_TYPE(SwitcherView);
 
 SwitcherView::SwitcherView()
   : render_boxes(false)
-  , animate(true)
   , border_size(50)
   , flat_spacing(20)
   , icon_size(128)
@@ -59,13 +59,14 @@ SwitcherView::SwitcherView()
   , spread_size(3.5f)
   , icon_renderer_(std::make_shared<IconRenderer>())
   , text_view_(new StaticCairoText(""))
+  , animation_(animation_length)
   , last_icon_selected_(-1)
   , last_detail_icon_selected_(-1)
-  , target_sizes_set_(false)
   , check_mouse_first_time_(true)
 {
   icon_renderer_->pip_style = OVER_TILE;
   icon_renderer_->monitor = monitors::MAX;
+  icon_renderer_->SetTargetSize(tile_size, icon_size, minimum_spacing);
 
   text_view_->SetMaximumWidth(tile_size * spread_size);
   text_view_->SetLines(1);
@@ -82,19 +83,16 @@ SwitcherView::SwitcherView()
 
   CaptureMouseDownAnyWhereElse(true);
   SetAcceptMouseWheelEvent(true);
-  ResetTimer();
 
-  animate.changed.connect([this] (bool enabled) {
-    if (enabled)
-    {
-      SaveTime();
-      QueueDraw();
-    }
-    else
-    {
-      ResetTimer();
-    }
+  SetBackgroundHelperGeometryGetter([this] {
+    // XXX: remove me when switcher will have a proper BaseWindow
+    auto geo = GetAbsoluteGeometry();
+    geo.OffsetPosition(blur_geometry_.x, blur_geometry_.y);
+    geo.SetSize(blur_geometry_.width, blur_geometry_.height);
+    return geo;
   });
+
+  animation_.updated.connect(sigc::hide(sigc::mem_fun(this, &SwitcherView::PreLayoutManagement)));
 }
 
 std::string SwitcherView::GetName() const
@@ -102,9 +100,9 @@ std::string SwitcherView::GetName() const
   return "SwitcherView";
 }
 
-void SwitcherView::AddProperties(GVariantBuilder* builder)
+void SwitcherView::AddProperties(debug::IntrospectionData& introspection)
 {
-  unity::variant::BuilderWrapper(builder)
+  introspection
   .add("render-boxes", render_boxes)
   .add("border-size", border_size)
   .add("flat-spacing", flat_spacing)
@@ -114,7 +112,7 @@ void SwitcherView::AddProperties(GVariantBuilder* builder)
   .add("vertical-size", vertical_size)
   .add("text-size", text_size)
   .add("animation-length", animation_length)
-  .add("spread-size", (float)spread_size)
+  .add("spread-size", spread_size)
   .add("label", text_view_->GetText())
   .add("last_icon_selected", last_icon_selected_)
   .add("spread_offset", SPREAD_OFFSET)
@@ -163,7 +161,7 @@ void SwitcherView::SetModel(SwitcherModel::Ptr model)
   text_view_->SetVisible(!model->detail_selection);
 
   if (!model->detail_selection)
-    text_view_->SetText(model->Selection()->tooltip_text());
+    text_view_->SetText(model->Selection()->tooltip_text(), true);
 }
 
 void SwitcherView::OnIconSizeChanged (int size)
@@ -177,15 +175,14 @@ void SwitcherView::OnTileSizeChanged (int size)
   vertical_size = tile_size + VERTICAL_PADDING * 2;
 }
 
-void SwitcherView::SaveTime()
+void SwitcherView::StartAnimation()
 {
-  clock_gettime(CLOCK_MONOTONIC, &save_time_);
+  animation::Start(animation_, animation::Direction::FORWARD);
 }
 
-void SwitcherView::ResetTimer()
+void SwitcherView::SkipAnimation()
 {
-  save_time_.tv_sec = 0;
-  save_time_.tv_nsec = 0;
+  animation::Skip(animation_);
 }
 
 void SwitcherView::SaveLast()
@@ -193,13 +190,12 @@ void SwitcherView::SaveLast()
   saved_args_ = last_args_;
   saved_background_ = last_background_;
 
-  if (animate())
-    SaveTime();
+  StartAnimation();
 }
 
 void SwitcherView::OnDetailSelectionIndexChanged(unsigned int index)
 {
-  QueueDraw ();
+  QueueRelayout();
 }
 
 void SwitcherView::OnDetailSelectionChanged(bool detail)
@@ -211,23 +207,21 @@ void SwitcherView::OnDetailSelectionChanged(bool detail)
 
   if (!detail)
   {
-    text_view_->SetText(model_->Selection()->tooltip_text());
+    text_view_->SetText(model_->Selection()->tooltip_text(), true);
     render_targets_.clear();
   }
 
   SaveLast();
-  QueueDraw();
 }
 
 void SwitcherView::OnSelectionChanged(AbstractLauncherIcon::Ptr const& selection)
 {
   if (selection)
-    text_view_->SetText(selection->tooltip_text());
+    text_view_->SetText(selection->tooltip_text(), true);
 
   delta_tracker_.ResetState();
 
   SaveLast();
-  QueueDraw();
 }
 
 nux::Point CalculateMouseMonitorOffset(int x, int y)
@@ -695,12 +689,11 @@ void GetFlatIconPositions (int n_flat_icons,
   }
 }
 
-std::list<RenderArg> SwitcherView::RenderArgsFlat(nux::Geometry& background_geo, int selection, float progress)
+bool SwitcherView::RenderArgsFlat(nux::Geometry& background_geo, int selection, float progress)
 {
-  std::list<RenderArg> results;
+  bool any_changed = true;
+  last_args_.clear();
   nux::Geometry const& base = GetGeometry();
-
-  bool detail_selection = model_->detail_selection;
 
   background_geo.y = base.y + base.height / 2 - (vertical_size / 2);
   background_geo.height = vertical_size;
@@ -710,6 +703,7 @@ std::list<RenderArg> SwitcherView::RenderArgsFlat(nux::Geometry& background_geo,
 
   if (model_)
   {
+    bool detail_selection = model_->detail_selection;
     int size = model_->Size();
     int padded_tile_size = tile_size + flat_spacing * 2;
     int max_width = base.width - border_size * 2;
@@ -761,6 +755,8 @@ std::list<RenderArg> SwitcherView::RenderArgsFlat(nux::Geometry& background_geo,
     int i = 0;
     int y = base.y + base.height / 2;
     x += border_size;
+    auto& results = last_args_;
+
     for (auto const& icon : *model_)
     {
       RenderArg arg = CreateBaseArgForIcon(icon);
@@ -820,45 +816,75 @@ std::list<RenderArg> SwitcherView::RenderArgsFlat(nux::Geometry& background_geo,
       ++i;
     }
 
-    if (saved_args_.size () == results.size () && progress < 1.0f)
+    if (background_geo != blur_geometry_)
     {
-      std::list<RenderArg> end = results;
-      results.clear();
-
-      std::list<RenderArg>::iterator start_it, end_it;
-      for (start_it = saved_args_.begin(), end_it = end.begin(); start_it != saved_args_.end(); ++start_it, ++end_it)
+      /* Update the blurred area geometry only if the final background is
+       * bigger than the previous blur geometry or if we've finished the
+       * animation; in this way we update the blurred area before growing
+       * and after that we've resized the view to the smaller size */
+      if ((background_geo.width >= blur_geometry_.width &&
+           background_geo.height >= blur_geometry_.height) || progress >= 1.0f)
       {
-        results.push_back(InterpolateRenderArgs(*start_it, *end_it, progress));
+        blur_geometry_ = background_geo;
+
+        // Notify BackgroundEffectHelper
+        geometry_changed.emit(this, blur_geometry_);
+      }
+    }
+
+    bool result_size_changed = (saved_args_.size() != results.size());
+    any_changed = result_size_changed;
+
+    if (!result_size_changed && progress < 1.0f)
+    {
+      auto& end = results;
+
+      for (auto start_it = saved_args_.begin(), end_it = end.begin(); start_it != saved_args_.end(); ++start_it, ++end_it)
+      {
+        if (*start_it != *end_it)
+        {
+          any_changed = true;
+
+          if (start_it->render_center == end_it->render_center &&
+              start_it->rotation == end_it->rotation)
+          {
+            /* If a value that we don't animate has changed, we only care about
+             * redrawing the icons once, so we return true here, but we also
+             * update the saved RenderArg so that next time this function
+             * will be called, we don't consider it changed (unless reprocessed). */
+            *start_it = *end_it;
+            continue;
+          }
+
+          *end_it = InterpolateRenderArgs(*start_it, *end_it, progress);
+        }
       }
 
       background_geo = InterpolateBackground(saved_background_, background_geo, progress);
     }
   }
 
-  return results;
+  return any_changed;
 }
 
-double SwitcherView::GetCurrentProgress()
+void SwitcherView::PreLayoutManagement()
 {
-  clock_gettime(CLOCK_MONOTONIC, &current_);
-  DeltaTime ms_since_change = TimeUtil::TimeDelta(&current_, &save_time_);
-  return std::min<double>(1.0f, ms_since_change / static_cast<double>(animation_length()));
+  UnityWindowView::PreLayoutManagement();
+
+  double progress = animation_.GetCurrentValue();
+
+  nux::Geometry background_geo;
+  bool any_changed = RenderArgsFlat(background_geo, model_ ? model_->SelectionIndex() : 0, progress);
+
+  if (background_geo != last_background_ || any_changed)
+  {
+    last_background_ = background_geo;
+    QueueDraw();
+  }
 }
 
 void SwitcherView::PreDraw(nux::GraphicsEngine& GfxContext, bool force_draw)
 {
-  double progress = GetCurrentProgress();
-
-  if (!target_sizes_set_)
-  {
-    icon_renderer_->SetTargetSize(tile_size, icon_size, minimum_spacing);
-    target_sizes_set_ = true;
-  }
-
-  nux::Geometry background_geo;
-  last_args_ = RenderArgsFlat(background_geo, model_->SelectionIndex(), progress);
-  last_background_ = background_geo;
-
   icon_renderer_->PreprocessIcons(last_args_, GetGeometry());
 }
 
@@ -867,13 +893,17 @@ nux::Geometry SwitcherView::GetBackgroundGeometry()
   return last_background_;
 }
 
+nux::Geometry SwitcherView::GetBlurredBackgroundGeometry()
+{
+  return blur_geometry_;
+}
+
 void SwitcherView::DrawOverlay(nux::GraphicsEngine& GfxContext, bool force_draw, nux::Geometry const& clip)
 {
   nux::Geometry const& base = GetGeometry();
   nux::Geometry internal_clip = clip;
 
   GfxContext.GetRenderStates().SetPremultipliedBlend(nux::SRC_OVER);
-
 
   for (auto const& arg : last_args_)
   {
@@ -926,17 +956,6 @@ void SwitcherView::DrawOverlay(nux::GraphicsEngine& GfxContext, bool force_draw,
     text_view_->SetBaseY(last_background_.y + last_background_.height - 45);
     text_view_->Draw(GfxContext, force_draw);
     nux::GetPainter().PopPaintLayerStack();
-  }
-
-  DeltaTime ms_since_change = TimeUtil::TimeDelta(&current_, &save_time_);
-
-  if (ms_since_change < animation_length && !redraw_idle_)
-  {
-    redraw_idle_.reset(new glib::Idle([this] () {
-      QueueDraw();
-      redraw_idle_.reset();
-      return false;
-    }, glib::Source::Priority::DEFAULT));
   }
 }
 

@@ -23,6 +23,7 @@
 
 #include <Nux/Button.h>
 
+#include "unity-shared/DecorationStyle.h"
 #include "unity-shared/PanelStyle.h"
 #include "unity-shared/UBusWrapper.h"
 #include "unity-shared/Introspectable.h"
@@ -49,7 +50,7 @@ public:
 protected:
   void Draw(nux::GraphicsEngine& GfxContext, bool force_draw);
   std::string GetName() const;
-  void AddProperties(GVariantBuilder* builder);
+  void AddProperties(debug::IntrospectionData&);
 
 private:
   void UpdateSize();

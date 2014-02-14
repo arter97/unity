@@ -43,6 +43,7 @@ public:
   nux::Property<double> opacity;
   nux::Property<bool> focused;
 
+  bool IsMouseOwner();
   virtual nux::Area* FindAreaUnderMouse(const nux::Point& mouse_pos, nux::NuxEventType event_type);
 
   sigc::signal<void> close_clicked;
@@ -55,7 +56,7 @@ public:
 
 protected:
   std::string GetName() const;
-  void AddProperties(GVariantBuilder* builder);
+  void AddProperties(debug::IntrospectionData&);
 
 private:
   void OnCloseClicked(nux::Button *button);

@@ -137,6 +137,7 @@ Controller::Impl::Impl(Controller* parent, XdndManager::Ptr const& xdnd_manager,
 
   HudLauncherIcon* hud = new HudLauncherIcon(hide_mode);
   RegisterIcon(AbstractLauncherIcon::Ptr(hud));
+  hud_icon_ = hud;
 
   TrashLauncherIcon* trash = new TrashLauncherIcon();
   RegisterIcon(AbstractLauncherIcon::Ptr(trash));
@@ -1064,12 +1065,13 @@ Controller::Controller(XdndManager::Ptr const& xdnd_manager, ui::EdgeBarrierCont
  , multiple_launchers(true)
  , pimpl(new Impl(this, xdnd_manager, edge_barriers))
 {
-  multiple_launchers.changed.connect([&](bool value) -> void {
+  multiple_launchers.changed.connect([this] (bool value) {
     UScreen* uscreen = UScreen::GetDefault();
     auto monitors = uscreen->GetMonitors();
     int primary = uscreen->GetPrimaryMonitor();
     pimpl->EnsureLaunchers(primary, monitors);
     options()->show_for_all = !value;
+    pimpl->hud_icon_->SetSingleLauncher(!value, primary);
   });
 }
 
@@ -1163,7 +1165,7 @@ void Controller::HandleLauncherKeyPress(int when)
 {
   pimpl->launcher_key_press_time_ = when;
 
-  auto show_launcher = [&]()
+  auto show_launcher = [this]
   {
     if (pimpl->keyboard_launcher_.IsNull())
       pimpl->keyboard_launcher_ = pimpl->CurrentLauncher();
@@ -1176,7 +1178,7 @@ void Controller::HandleLauncherKeyPress(int when)
   };
   pimpl->sources_.AddTimeout(options()->super_tap_duration, show_launcher, local::KEYPRESS_TIMEOUT);
 
-  auto show_shortcuts = [&]()
+  auto show_shortcuts = [this]
   {
     if (!pimpl->launcher_keynav)
     {
@@ -1202,7 +1204,10 @@ bool Controller::AboutToShowDash(int was_tap, int when) const
 void Controller::HandleLauncherKeyRelease(bool was_tap, int when)
 {
   int tap_duration = when - pimpl->launcher_key_press_time_;
-  if (tap_duration < options()->super_tap_duration && was_tap)
+  WindowManager& wm = WindowManager::Default();
+
+  if (tap_duration < options()->super_tap_duration && was_tap &&
+      !wm.IsTopWindowFullscreenOnMonitorWithMouse())
   {
     LOG_DEBUG(logger) << "Quick tap, sending activation request.";
     pimpl->SendHomeActivationRequest();
@@ -1232,7 +1237,7 @@ void Controller::HandleLauncherKeyRelease(bool was_tap, int when)
     {
       int time_left = local::launcher_minimum_show_duration - ms_since_show;
 
-      auto hide_launcher = [&]()
+      auto hide_launcher = [this]
       {
         if (pimpl->keyboard_launcher_.IsValid())
         {
@@ -1420,12 +1425,12 @@ Controller::GetName() const
 }
 
 void
-Controller::AddProperties(GVariantBuilder* builder)
+Controller::AddProperties(debug::IntrospectionData& introspection)
 {
   timespec current;
   clock_gettime(CLOCK_MONOTONIC, &current);
 
-  variant::BuilderWrapper(builder)
+  introspection
   .add("key_nav_is_active", KeyNavIsActive())
   .add("key_nav_launcher_monitor", pimpl->keyboard_launcher_.IsValid() ?  pimpl->keyboard_launcher_->monitor : -1)
   .add("key_nav_selection", pimpl->model_->SelectionIndex())

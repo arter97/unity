@@ -26,6 +26,7 @@
 #include "LauncherIcon.h"
 #include "unity-shared/AnimationUtils.h"
 #include "unity-shared/CairoTexture.h"
+#include "unity-shared/UScreen.h"
 
 #include "QuicklistManager.h"
 #include "QuicklistMenuItem.h"
@@ -71,6 +72,7 @@ LauncherIcon::LauncherIcon(IconType type)
   , _present_urgency(0)
   , _progress(0.0f)
   , _sort_priority(DefaultPriority(type))
+  , _order(0)
   , _last_monitor(0)
   , _background_color(nux::color::White)
   , _glow_color(nux::color::White)
@@ -84,7 +86,6 @@ LauncherIcon::LauncherIcon(IconType type)
 {
   tooltip_enabled = true;
   tooltip_enabled.changed.connect(sigc::mem_fun(this, &LauncherIcon::OnTooltipEnabledChanged));
-  tooltip_text.SetSetterFunction(sigc::mem_fun(this, &LauncherIcon::SetTooltipText));
 
   position = Position::FLOATING;
   removed = false;
@@ -124,7 +125,7 @@ void LauncherIcon::LoadQuicklist()
   _quicklist = new QuicklistView();
   AddChild(_quicklist.GetPointer());
 
-  _quicklist->mouse_down_outside_pointer_grab_area.connect([&] (int x, int y, unsigned long button_flags, unsigned long key_flags)
+  _quicklist->mouse_down_outside_pointer_grab_area.connect([this] (int x, int y, unsigned long button_flags, unsigned long key_flags)
   {
     _allow_quicklist_to_show = false;
   });
@@ -148,25 +149,42 @@ LauncherIcon::GetName() const
   return "LauncherIcon";
 }
 
-void
-LauncherIcon::AddProperties(GVariantBuilder* builder)
+void LauncherIcon::AddProperties(debug::IntrospectionData& introspection)
 {
-  GVariantBuilder monitors_builder;
-  g_variant_builder_init(&monitors_builder, G_VARIANT_TYPE ("ab"));
+  std::vector<bool> monitors_active,
+                    monitors_visible,
+                    monitors_urgent,
+                    monitors_running,
+                    monitors_starting,
+                    monitors_desaturated,
+                    monitors_presented;
 
   for (unsigned i = 0; i < monitors::MAX; ++i)
-    g_variant_builder_add(&monitors_builder, "b", IsVisibleOnMonitor(i));
+  {
+    monitors_active.push_back(GetQuirk(Quirk::ACTIVE, i));
+    monitors_visible.push_back(IsVisibleOnMonitor(i));
+    monitors_urgent.push_back(GetQuirk(Quirk::URGENT, i));
+    monitors_running.push_back(GetQuirk(Quirk::RUNNING, i));
+    monitors_starting.push_back(GetQuirk(Quirk::STARTING, i));
+    monitors_desaturated.push_back(GetQuirk(Quirk::DESAT, i));
+    monitors_presented.push_back(GetQuirk(Quirk::PRESENTED, i));
+  }
 
-  unity::variant::BuilderWrapper(builder)
-  .add("center_x", _center[0].x)
-  .add("center_y", _center[0].y)
-  .add("center_z", _center[0].z)
+  introspection
+  .add("center", _center[unity::UScreen::GetDefault()->GetMonitorWithMouse()])
   .add("related_windows", Windows().size())
   .add("icon_type", unsigned(_icon_type))
   .add("tooltip_text", tooltip_text())
   .add("sort_priority", _sort_priority)
   .add("shortcut", _shortcut)
-  .add("monitors_visibility", g_variant_builder_end(&monitors_builder))
+  .add("order", _order)
+  .add("monitors_active", glib::Variant::FromVector(monitors_active))
+  .add("monitors_visibility", glib::Variant::FromVector(monitors_visible))
+  .add("monitors_urgent", glib::Variant::FromVector(monitors_urgent))
+  .add("monitors_running", glib::Variant::FromVector(monitors_running))
+  .add("monitors_starting", glib::Variant::FromVector(monitors_starting))
+  .add("monitors_desaturated", glib::Variant::FromVector(monitors_desaturated))
+  .add("monitors_presented", glib::Variant::FromVector(monitors_presented))
   .add("active", GetQuirk(Quirk::ACTIVE))
   .add("visible", GetQuirk(Quirk::VISIBLE))
   .add("urgent", GetQuirk(Quirk::URGENT))
@@ -329,10 +347,9 @@ BaseTexturePtr LauncherIcon::TextureFromGtkTheme(std::string icon_name, int size
     icon_name = DEFAULT_ICON;
 
   default_theme = gtk_icon_theme_get_default();
+  result = TextureFromSpecificGtkTheme(default_theme, icon_name, size, update_glow_colors);
 
-  // FIXME: we need to create some kind of -unity postfix to see if we are looking to the unity-icon-theme
-  // for dedicated unity icons, then remove the postfix and degrade to other icon themes if not found
-  if (icon_name.find("workspace-switcher") == 0)
+  if (!result)
     result = TextureFromSpecificGtkTheme(GetUnityTheme(), icon_name, size, update_glow_colors);
 
   if (!result)
@@ -427,23 +444,6 @@ BaseTexturePtr LauncherIcon::TextureFromPath(std::string const& icon_name, int s
   }
 
   return BaseTexturePtr();
-}
-
-bool LauncherIcon::SetTooltipText(std::string& target, std::string const& value)
-{
-  auto const& escaped = glib::String(g_markup_escape_text(value.c_str(), -1)).Str();
-
-  if (escaped != target)
-  {
-    target = escaped;
-
-    if (_tooltip)
-      _tooltip->text = target;
-
-    return true;
-  }
-
-  return false;
 }
 
 void LauncherIcon::OnTooltipEnabledChanged(bool value)
@@ -801,6 +801,11 @@ void LauncherIcon::SetSortPriority(int priority)
 int LauncherIcon::SortPriority()
 {
   return _sort_priority;
+}
+
+void LauncherIcon::SetOrder(int order)
+{
+  _order = order;
 }
 
 LauncherIcon::IconType

@@ -85,6 +85,8 @@ MATCHER_P(AreArgsEqual, a, "")
 
 struct TestApplicationLauncherIcon : testmocks::TestUnityAppBase
 {
+  virtual ~TestApplicationLauncherIcon() {}
+
   virtual void SetUp() override
   {
     usc_app = std::make_shared<MockApplication::Nice>(USC_DESKTOP, "softwarecenter");
@@ -716,8 +718,25 @@ TEST_F(TestApplicationLauncherIcon, PerformScrollInitiallyUnfocusedWindow)
   ASSERT_EQ(WM->GetActiveWindow(), 8);
 
   mock_icon->PerformScroll(AbstractLauncherIcon::ScrollDirection::DOWN, 200);
-  EXPECT_THAT(WM->GetWindowsInStackingOrder(), testing::ElementsAre(7, 6, 5, 4, 3, 2, 8, 1));
-  ASSERT_EQ(WM->GetActiveWindow(), 1);
+  EXPECT_THAT(WM->GetWindowsInStackingOrder(), testing::ElementsAre(7, 6, 5, 4, 3, 2, 1, 8));
+  ASSERT_EQ(WM->GetActiveWindow(), 8);
+}
+
+TEST_F(TestApplicationLauncherIcon, PerformScrollSingleUnfocusedWindow)
+{
+  AddMockWindow(1, 0, 0);
+
+  auto external_window = std::make_shared<unity::StandaloneWindow>(2);
+  WM->AddStandaloneWindow(external_window);
+  mock_icon->SetQuirk(AbstractLauncherIcon::Quirk::ACTIVE, false);
+
+  EXPECT_THAT(WM->GetWindowsInStackingOrder(), testing::ElementsAre(1, 2));
+  ASSERT_EQ(WM->GetActiveWindow(), 2);
+
+  mock_icon->PerformScroll(AbstractLauncherIcon::ScrollDirection::DOWN, 200);
+
+  EXPECT_THAT(WM->GetWindowsInStackingOrder(), testing::ElementsAre(1, 2));
+  ASSERT_EQ(WM->GetActiveWindow(), 2);
 }
 
 TEST_F(TestApplicationLauncherIcon, ActiveQuirkWMCrossCheck)
@@ -982,7 +1001,11 @@ TEST_F(TestApplicationLauncherIcon, QuicklistMenuItemRemoteIgnoresInvisible)
   EXPECT_FALSE(HasMenuItemWithLabel(mock_icon, "InvisibleLabel"));
 }
 
-struct QuitLabel : TestApplicationLauncherIcon, testing::WithParamInterface<std::string> {};
+struct QuitLabel : TestApplicationLauncherIcon, testing::WithParamInterface<std::string>
+{
+  virtual ~QuitLabel() {}
+};
+
 INSTANTIATE_TEST_CASE_P(TestApplicationLauncherIcon, QuitLabel, testing::Values("Quit", "Exit", "Close"));
 
 TEST_P(/*TestApplicationLauncherIcon*/QuitLabel, QuicklistMenuItemRemoteOverridesQuitByLabelNotRunning)

@@ -30,11 +30,10 @@
 #include <NuxGraphics/CairoGraphics.h>
 #include <gdk/gdkx.h>
 
-#include <UnityCore/DBusIndicators.h>
-
 #include "launcher/EdgeBarrierController.h"
 #include "unity-shared/BackgroundEffectHelper.h"
 #include "unity-shared/Introspectable.h"
+#include "unity-shared/MenuManager.h"
 #include "unity-shared/MockableBaseWindow.h"
 #include "PanelMenuView.h"
 #include "PanelTray.h"
@@ -43,14 +42,16 @@
 
 namespace unity
 {
+namespace panel
+{
 
-class PanelView : public unity::debug::Introspectable, 
+class PanelView : public unity::debug::Introspectable,
                   public ui::EdgeBarrierSubscriber,
                   public nux::View
 {
   NUX_DECLARE_OBJECT_TYPE(PanelView, nux::View);
 public:
-  PanelView(MockableBaseWindow* parent, indicator::DBusIndicators::Ptr const&, NUX_FILE_LINE_PROTO);
+  PanelView(MockableBaseWindow* parent, menu::Manager::Ptr const&, NUX_FILE_LINE_PROTO);
   ~PanelView();
 
   MockableBaseWindow* GetParent() const
@@ -62,12 +63,9 @@ public:
   int GetMonitor() const;
 
   bool IsActive() const;
-  bool FirstMenuShow() const;
 
   void SetOpacity(float opacity);
   void SetOpacityMaximizedToggle(bool enabled);
-  void SetMenuShowTimings(int fadein, int fadeout, int discovery,
-                          int discovery_fadein, int discovery_fadeout);
 
   Window GetTrayXid() const;
   int GetStoredDashWidth() const;
@@ -78,22 +76,19 @@ public:
 
   ui::EdgeBarrierSubscriber::Result HandleBarrierEvent(ui::PointerBarrierWrapper* owner, ui::BarrierEvent::Ptr event) override;
 
-  // FIXME: This will need to be removed when the Unity performance branch is merged.
-  void NeedSoftRedraw() override;
-
 protected:
   void Draw(nux::GraphicsEngine& GfxContext, bool force_draw);
   void DrawContent(nux::GraphicsEngine& GfxContext, bool force_draw);
+  void PreLayoutManagement();
 
   // Introspectable methods
   std::string GetName() const;
-  void AddProperties(GVariantBuilder* builder);
+  void AddProperties(debug::IntrospectionData&);
 
   void OnObjectAdded(indicator::Indicator::Ptr const& proxy);
   void OnObjectRemoved(indicator::Indicator::Ptr const& proxy);
-  void OnIndicatorViewUpdated(PanelIndicatorEntryView* view);
+  void OnIndicatorViewUpdated();
   void OnMenuPointerMoved(int x, int y);
-  void OnEntryActivateRequest(std::string const& entry_id);
   void OnEntryActivated(std::string const& entry_id, nux::Rect const& geo);
   void OnEntryShowMenu(std::string const& entry_id, unsigned xid, int x, int y, unsigned button);
 
@@ -102,6 +97,8 @@ private:
   void OnOverlayShown(GVariant *data);
   void OnOverlayHidden(GVariant *data);
 
+  bool ActivateFirstSensitive();
+  bool ActivateEntry(std::string const& entry_id);
   void Resize(nux::Point const& offset, int width);
   bool IsTransparent();
   void UpdateBackground();
@@ -111,7 +108,7 @@ private:
   void AddPanelView(PanelIndicatorsView* child, unsigned int stretchFactor);
 
   MockableBaseWindow* parent_;
-  indicator::DBusIndicators::Ptr remote_;
+  indicator::Indicators::Ptr remote_;
 
   // No ownership is taken for these views, that is done by the AddChild method.
   PanelMenuView* menu_view_;
@@ -141,7 +138,6 @@ private:
   int monitor_;
   int stored_dash_width_;
   int launcher_width_;
-  bool refine_is_open_;
 
   connection::Manager on_indicator_updated_connections_;
   connection::Manager maximized_opacity_toggle_connections_;
@@ -151,6 +147,7 @@ private:
   glib::Source::UniquePtr track_menu_pointer_timeout_;
 };
 
-}
+} // namespace panel
+} // namespace unity
 
 #endif // PANEL_VIEW_H

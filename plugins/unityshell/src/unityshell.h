@@ -69,6 +69,7 @@
 #include "UnityshellPrivate.h"
 #include "UnityShowdesktopHandler.h"
 #include "ThumbnailGenerator.h"
+#include "MenuManager.h"
 
 #include "compizminimizedwindowhandler.h"
 #include "BGHash.h"
@@ -84,6 +85,19 @@ namespace unity
 {
 class UnityWindow;
 
+namespace decoration
+{
+class Manager;
+class Window;
+enum class WidgetState : unsigned;
+}
+
+namespace compiz_utils
+{
+struct CairoContext;
+struct PixmapTexture;
+}
+
 /* base screen class */
 class UnityScreen :
   public debug::Introspectable,
@@ -93,6 +107,7 @@ class UnityScreen :
   public GLScreenInterface,
   public BaseSwitchScreen,
   public PluginClassHandler <UnityScreen, CompScreen>,
+  public CompAction::Container,
   public UnityshellOptions
 {
 public:
@@ -111,9 +126,11 @@ public:
 
   /* nux draw wrapper */
   void paintDisplay();
-  void paintPanelShadow(const CompRegion& clip);
+  void paintPanelShadow(CompRegion const& clip);
   void setPanelShadowMatrix(const GLMatrix& matrix);
 
+  void updateBlurDamage();
+  void damageCutoff();
   void preparePaint (int ms);
   void paintFboForOutput (CompOutput *output);
   void donePaint ();
@@ -144,11 +161,14 @@ public:
 
   /* handle X11 events */
   void handleEvent(XEvent*);
+  void addSupportedAtoms(std::vector<Atom>&);
 
   /* handle showdesktop */
   void enterShowDesktopMode ();
   void leaveShowDesktopMode (CompWindow *w);
 
+  bool showMenuBarInitiate(CompAction* action, CompAction::State state, CompOption::Vector& options);
+  bool showMenuBarTerminate(CompAction* action, CompAction::State state, CompOption::Vector& options);
   bool showLauncherKeyInitiate(CompAction* action, CompAction::State state, CompOption::Vector& options);
   bool showLauncherKeyTerminate(CompAction* action, CompAction::State state, CompOption::Vector& options);
   bool showPanelFirstMenuKeyInitiate(CompAction* action, CompAction::State state, CompOption::Vector& options);
@@ -177,8 +197,8 @@ public:
   bool launcherSwitcherForwardInitiate(CompAction* action, CompAction::State state, CompOption::Vector& options);
   bool launcherSwitcherPrevInitiate(CompAction* action, CompAction::State state, CompOption::Vector& options);
   bool launcherSwitcherTerminate(CompAction* action, CompAction::State state, CompOption::Vector& options);
-  bool rightMaximizeKeyInitiate(CompAction* action, CompAction::State state, CompOption::Vector& options);
-  bool leftMaximizeKeyInitiate(CompAction* action, CompAction::State state, CompOption::Vector& options);
+
+  bool LockScreenInitiate(CompAction* action, CompAction::State state, CompOption::Vector& options);
 
   /* handle option changes and change settings inside of the
    * panel and dock views */
@@ -209,9 +229,11 @@ public:
 
   ui::LayoutWindow::Ptr GetSwitcherDetailLayoutWindow(Window window) const;
 
+  CompAction::Vector& getActions();
+
 protected:
   std::string GetName() const;
-  void AddProperties(GVariantBuilder* builder);
+  void AddProperties(debug::IntrospectionData&);
 
 private:
   enum CancelActionTarget
@@ -232,7 +254,7 @@ private:
   void initLauncher();
 
   void compizDamageNux(CompRegion const& region);
-  void nuxDamageCompiz();
+  void determineNuxDamage(CompRegion &nux_damage);
 
   void onRedrawRequested();
   void Relayout();
@@ -248,24 +270,35 @@ private:
   void OnLauncherStartKeyNav(GVariant* data);
   void OnLauncherEndKeyNav(GVariant* data);
 
-  void OnSwitcherStart(GVariant* data);
   void OnSwitcherEnd(GVariant* data);
 
   void OnInitiateSpread();
   void OnTerminateSpread();
 
+  void DamagePanelShadow();
+
+  void OnViewHidden(nux::BaseWindow *bw);
+
+  void RestoreWindow(GVariant* data);
+
   bool SaveInputThenFocus(const guint xid);
 
-  void OnPanelStyleChanged();
+  void OnDecorationStyleChanged();
 
   void InitGesturesSupport();
 
   void DrawPanelUnderDash();
 
+  void FillShadowRectForOutput(CompRect &shadowRect,
+                               CompOutput const &output);
   unsigned CompizModifiersToNux(unsigned input) const;
   unsigned XModifiersToNux(unsigned input) const;
 
   void UpdateCloseWindowKey(CompAction::KeyBinding const&);
+
+  bool getMipmap () override { return false; }
+
+  void DamageBlurUpdateRegion(nux::Geometry const&);
 
   std::unique_ptr<na::TickSource> tick_source_;
   std::unique_ptr<na::AnimationController> animation_controller_;
@@ -279,6 +312,9 @@ private:
 
   /* The window thread should be the last thing removed, as c++ does it in reverse order */
   std::unique_ptr<nux::WindowThread> wt;
+
+  menu::Manager::Ptr menus_;
+  std::shared_ptr<decoration::Manager> deco_manager_;
 
   /* These must stay below the window thread, please keep the order */
   launcher::Controller::Ptr launcher_controller_;
@@ -322,6 +358,12 @@ private:
   bool    _key_nav_mode_requested;
   CompOutput* _last_output;
 
+  /* a small count-down work-a-around
+   * to force full redraws of the shell
+   * a certain number of frames after a
+   * suspend / resume cycle */
+  unsigned int force_draw_countdown_;
+
   CompRegion panelShadowPainted;
   CompRegion nuxRegion;
   CompRegion fullscreenRegion;
@@ -355,9 +397,17 @@ private:
   UBusManager ubus_manager_;
   glib::SourceManager sources_;
 
+  CompRegion buffered_compiz_damage_this_frame_;
+  CompRegion buffered_compiz_damage_last_frame_;
+  bool       ignore_redraw_request_;
+  bool       dirty_helpers_on_this_frame_;
+
+  unsigned int back_buffer_age_;
+
   bool is_desktop_active_;
 
   friend class UnityWindow;
+  friend class decoration::Manager;
 };
 
 class UnityWindow :
@@ -388,6 +438,7 @@ public:
   void activate();
 
   void updateFrameRegion(CompRegion &region);
+  void getOutputExtents(CompWindowExtents& output);
 
   /* occlusion detection
    * and window hiding */
@@ -395,6 +446,8 @@ public:
 
   /* basic window draw function */
   bool glDraw(GLMatrix const&, GLWindowPaintAttrib const&, CompRegion const&, unsigned mask);
+
+  bool damageRect(bool initial, CompRect const&);
 
   void updateIconPos (int &wx, int &wy, int x, int y, float width, float height);
   void windowNotify(CompWindowNotify n);
@@ -422,14 +475,11 @@ public:
 
 protected:
   std::string GetName() const;
-  void AddProperties(GVariantBuilder* builder);
+  void AddProperties(debug::IntrospectionData&);
 
 private:
-  typedef compiz::CompizMinimizedWindowHandler<UnityScreen, UnityWindow>
-          UnityMinimizedHandler;
-  struct PixmapTexture;
-  typedef std::shared_ptr<PixmapTexture> PixmapTexturePtr;
-  struct CairoContext;
+  typedef compiz::CompizMinimizedWindowHandler<UnityScreen, UnityWindow> UnityMinimizedHandler;
+  typedef std::shared_ptr<compiz_utils::PixmapTexture> PixmapTexturePtr;
 
   void DoEnableFocus ();
   void DoDisableFocus ();
@@ -464,8 +514,8 @@ private:
 
   compiz::WindowInputRemoverLock::Ptr GetInputRemover ();
 
-  void RenderDecoration(CairoContext const&, double aspect = 1.0f);
-  void RenderText(CairoContext const&, int x, int y, int width, int height);
+  void RenderDecoration(compiz_utils::CairoContext const&, double aspect = 1.0f);
+  void RenderTitle(compiz_utils::CairoContext const&, int x, int y, int width, int height);
   void DrawTexture(GLTexture::List const& textures, GLWindowPaintAttrib const&,
                    GLMatrix const&, unsigned mask, int x, int y, double aspect = 1.0f);
 
@@ -477,25 +527,19 @@ private:
 
   void BuildDecorationTexture();
   void CleanupCachedTextures();
-  static void SetupSharedTextures();
-  static void CleanupSharedTextures();
-  static void LoadCloseIcon(panel::WindowState state, GLTexture::List& texture);
 
 public:
   std::unique_ptr <UnityMinimizedHandler> mMinimizeHandler;
 
 private:
   std::unique_ptr <ShowdesktopHandler> mShowdesktopHandler;
-  static GLTexture::List close_normal_tex_;
-  static GLTexture::List close_prelight_tex_;
-  static GLTexture::List close_pressed_tex_;
-  static GLTexture::List glow_texture_;
   PixmapTexturePtr decoration_tex_;
   PixmapTexturePtr decoration_selected_tex_;
   std::string decoration_title_;
   compiz::WindowInputRemoverLock::Weak input_remover_;
-  panel::WindowState close_icon_state_;
+  decoration::WidgetState close_icon_state_;
   nux::Geometry close_button_geo_;
+  std::shared_ptr<decoration::Window> deco_win_;
   bool middle_clicked_;
   bool is_nux_window_;
   glib::Source::UniquePtr focus_desktop_timeout_;

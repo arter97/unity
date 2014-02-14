@@ -137,7 +137,9 @@ GnomeManager::Impl::~Impl()
 bool GnomeManager::Impl::InteractiveMode()
 {
   bool schema_found = false;
-  const gchar* const* schemas = g_settings_list_schemas();
+  gchar** schemas = nullptr;
+
+  g_settings_schema_source_list_schemas(g_settings_schema_source_get_default(), TRUE, &schemas, nullptr);
 
   for (unsigned i = 0; schemas[i]; ++i)
   {
@@ -147,6 +149,8 @@ bool GnomeManager::Impl::InteractiveMode()
       break;
     }
   }
+
+  g_strfreev(schemas);
 
   if (!schema_found)
     return true;
@@ -360,11 +364,11 @@ void GnomeManager::Impl::CallConsoleKitMethod(std::string const& method, GVarian
 // Public implementation
 
 GnomeManager::GnomeManager()
-  : impl_(new GnomeManager::Impl(this))
+  : impl_(new Impl(this))
 {}
 
 GnomeManager::GnomeManager(GnomeManager::TestMode const& tm)
-  : impl_(new GnomeManager::Impl(this, true))
+  : impl_(new Impl(this, true))
 {}
 
 GnomeManager::~GnomeManager()

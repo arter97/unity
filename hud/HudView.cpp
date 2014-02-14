@@ -17,6 +17,7 @@
  */
 
 #include "HudView.h"
+#include "MultiMonitor.h"
 
 #include <math.h>
 
@@ -24,7 +25,6 @@
 #include <glib/gi18n-lib.h>
 #include <NuxCore/Logger.h>
 #include <UnityCore/GLibWrapper.h>
-#include <UnityCore/Variant.h>
 #include <Nux/HLayout.h>
 #include <Nux/VLayout.h>
 
@@ -83,7 +83,7 @@ View::View()
   search_bar_->text_entry()->SetLoseKeyFocusOnKeyNavDirectionUp(false);
   search_bar_->text_entry()->SetLoseKeyFocusOnKeyNavDirectionDown(false);
 
-  search_bar_->text_entry()->key_nav_focus_change.connect([&](nux::Area *area, bool receiving, nux::KeyNavDirection direction)
+  search_bar_->text_entry()->key_nav_focus_change.connect([this](nux::Area *area, bool receiving, nux::KeyNavDirection direction)
   {
     // We get here when the Hud closes.
     // The TextEntry should always have the keyboard focus as long as the hud is open.
@@ -138,6 +138,7 @@ void View::ProcessGrowShrink()
 {
   float diff = g_get_monotonic_time() - start_time_;
   int target_height = content_layout_->GetGeometry().height;
+
   // only animate if we are after our defined pause time
   if (diff > pause_before_grow_length)
   {
@@ -155,7 +156,6 @@ void View::ProcessGrowShrink()
       //shrink
       new_height = last_height - ((last_height - target_height) * progress);
     }
-    
 
     LOG_DEBUG(logger) << "resizing to " << target_height << " (" << new_height << ")"
                      << "View height: " << GetGeometry().height;
@@ -179,7 +179,7 @@ void View::ProcessGrowShrink()
   }
   else
   {
-    timeline_idle_.reset(new glib::Timeout(0, [this]
+    timeline_idle_.reset(new glib::Idle([this]
     {
       QueueDraw();
       return false;
@@ -190,7 +190,7 @@ void View::ProcessGrowShrink()
 void View::ResetToDefault()
 {
   SetQueries(Hud::Queries());
-  current_height_ = content_layout_->GetBaseHeight();;
+  current_height_ = content_layout_->GetBaseHeight();
 
   UpdateLayoutGeometry();
 
@@ -239,7 +239,7 @@ void View::SetQueries(Hud::Queries queries)
 
     button_views_->AddView(button.GetPointer(), 0, nux::MINOR_POSITION_START);
 
-    button->click.connect([&](nux::View* view) {
+    button->click.connect([this](nux::View* view) {
       query_activated.emit(dynamic_cast<HudButton*>(view)->GetQuery());
     });
 
@@ -344,11 +344,22 @@ void View::AboutToShow()
 {
   visible_ = true;
   overlay_window_buttons_->Show();
+
+  nux::Geometry draw_content_geo = layout_->GetGeometry();
+  draw_content_geo.height = current_height_;
+
   renderer_.AboutToShow();
+  renderer_.UpdateBlurBackgroundSize(draw_content_geo, GetAbsoluteGeometry(), true);
 }
 
 void View::AboutToHide()
 {
+  if (BackgroundEffectHelper::blur_type == BLUR_STATIC)
+  {
+    nux::Geometry geo = {0, 0, 0, 0};
+    renderer_.UpdateBlurBackgroundSize(geo, GetAbsoluteGeometry(), true);
+  }
+
   visible_ = false;
   overlay_window_buttons_->Hide();
   renderer_.AboutToHide();
@@ -390,8 +401,11 @@ void View::SetupViews()
       content_layout_->AddLayout(button_views_.GetPointer(), 1, nux::MINOR_POSITION_START);
     }
 
-    content_layout_->geometry_changed.connect([&](nux::Area*, nux::Geometry& geo)
+    content_layout_->geometry_changed.connect([this](nux::Area*, nux::Geometry geo)
     {
+      geo.height = std::max(geo.height, current_height_);
+      renderer_.UpdateBlurBackgroundSize(geo, GetAbsoluteGeometry(), true);
+
       if (!timeline_animating_)
       {
         timeline_animating_ = true;
@@ -555,14 +569,18 @@ std::string View::GetName() const
   return "HudView";
 }
 
-void View::AddProperties(GVariantBuilder* builder)
+void View::AddProperties(debug::IntrospectionData& introspection)
 {
-  unsigned num_buttons = buttons_.size();
-  variant::BuilderWrapper(builder)
-    .add(GetGeometry())
+  std::vector<bool> button_on_monitor;
+
+  for (unsigned i = 0; i < monitors::MAX; ++i)
+    button_on_monitor.push_back(overlay_window_buttons_->IsVisibleOnMonitor(i));
+
+  introspection
+    .add(GetAbsoluteGeometry())
     .add("selected_button", selected_button_)
-    .add("overlay_window_buttons_shown", overlay_window_buttons_->IsVisible())
-    .add("num_buttons", num_buttons);
+    .add("overlay_window_buttons_shown", glib::Variant::FromVector(button_on_monitor))
+    .add("num_buttons", buttons_.size());
 }
 
 debug::Introspectable::IntrospectableList View::GetIntrospectableChildren()

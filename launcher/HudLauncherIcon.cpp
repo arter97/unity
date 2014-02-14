@@ -19,7 +19,6 @@
 
 #include "HudLauncherIcon.h"
 #include "UnityCore/GLibWrapper.h"
-#include "UnityCore/Variant.h"
 #include <NuxCore/Logger.h>
 
 #include "unity-shared/UBusMessages.h"
@@ -36,6 +35,9 @@ DECLARE_LOGGER(logger, "unity.launcher.icon.hud");
 HudLauncherIcon::HudLauncherIcon(LauncherHideMode hide_mode)
  : SingleMonitorLauncherIcon(IconType::HUD)
  , launcher_hide_mode_(hide_mode)
+ , overlay_monitor_(0)
+ , single_launcher_(false)
+ , launcher_monitor_(0)
 {
   tooltip_text = _("HUD");
   tooltip_enabled = false;
@@ -77,7 +79,25 @@ void HudLauncherIcon::SetHideMode(LauncherHideMode hide_mode)
     launcher_hide_mode_ = hide_mode;
 
     if (launcher_hide_mode_ == LAUNCHER_HIDE_AUTOHIDE)
+    {
+      SetQuirk(Quirk::ACTIVE, false);
       SetQuirk(Quirk::VISIBLE, false);
+    }
+  }
+}
+
+void HudLauncherIcon::SetSingleLauncher(bool single_launcher, int launcher_monitor)
+{
+  if (single_launcher_ == single_launcher && launcher_monitor_ == launcher_monitor)
+    return;
+  
+  single_launcher_ = single_launcher;
+  launcher_monitor_ = launcher_monitor;
+
+  if (single_launcher_)
+  {
+    SetQuirk(Quirk::ACTIVE, false);
+    SetQuirk(Quirk::VISIBLE, false);
   }
 }
 
@@ -85,17 +105,18 @@ void HudLauncherIcon::OnOverlayShown(GVariant* data, bool visible)
 {
   unity::glib::String overlay_identity;
   gboolean can_maximise = FALSE;
-  gint32 overlay_monitor = 0;
   int width, height;
   g_variant_get(data, UBUS_OVERLAY_FORMAT_STRING,
-                &overlay_identity, &can_maximise, &overlay_monitor, &width, &height);
+                &overlay_identity, &can_maximise, &overlay_monitor_, &width, &height);
 
   // If the hud is open, we show the HUD button if we have a locked launcher
   if (overlay_identity.Str() == "hud" &&
-      launcher_hide_mode_ == LAUNCHER_HIDE_NEVER)
+      launcher_hide_mode_ == LAUNCHER_HIDE_NEVER &&
+      (!single_launcher_ || (single_launcher_ && launcher_monitor_ == overlay_monitor_)))
   {
-    SetMonitor(visible ? overlay_monitor : -1);
-    SkipQuirkAnimation(Quirk::VISIBLE, overlay_monitor);
+    SetMonitor(visible ? overlay_monitor_ : -1);
+    SetQuirk(Quirk::ACTIVE, visible, overlay_monitor_);
+    SkipQuirkAnimation(Quirk::VISIBLE, overlay_monitor_);
   }
 }
 
@@ -111,7 +132,7 @@ nux::Color HudLauncherIcon::GlowColor()
 
 void HudLauncherIcon::ActivateLauncherIcon(ActionArg arg)
 {
-  if (IsVisible())
+  if (IsVisibleOnMonitor(overlay_monitor_))
   {
     ubus_manager_.SendMessage(UBUS_HUD_CLOSE_REQUEST);
   }

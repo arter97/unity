@@ -3,35 +3,7 @@ set(UNITY_SRC ../plugins/unityshell/src)
 #
 # Data
 #
-configure_file (${CMAKE_CURRENT_SOURCE_DIR}/data/applications/ubuntuone-installer.desktop
-                ${CMAKE_BINARY_DIR}/tests/data/applications/ubuntuone-installer.desktop)
-configure_file (${CMAKE_CURRENT_SOURCE_DIR}/data/applications/ubuntu-software-center.desktop
-                ${CMAKE_BINARY_DIR}/tests/data/applications/ubuntu-software-center.desktop)
-configure_file (${CMAKE_CURRENT_SOURCE_DIR}/data/applications/update-manager.desktop
-                ${CMAKE_BINARY_DIR}/tests/data/applications/update-manager.desktop)
-configure_file (${CMAKE_CURRENT_SOURCE_DIR}/data/applications/bzr-handle-patch.desktop
-                ${CMAKE_BINARY_DIR}/tests/data/applications/bzr-handle-patch.desktop)
-configure_file (${CMAKE_CURRENT_SOURCE_DIR}/data/applications/no-icon.desktop
-                ${CMAKE_BINARY_DIR}/tests/data/applications/no-icon.desktop)
-configure_file (${CMAKE_CURRENT_SOURCE_DIR}/data/applications/kde4/afile.desktop
-                ${CMAKE_BINARY_DIR}/tests/data/applications/kde4/afile.desktop)
-
-configure_file (${CMAKE_CURRENT_SOURCE_DIR}/data/unity/scopes/testscope1.scope
-                ${CMAKE_BINARY_DIR}/tests/data/unity/scopes/testscope1.scope)
-configure_file (${CMAKE_CURRENT_SOURCE_DIR}/data/unity/scopes/testscope2.scope
-                ${CMAKE_BINARY_DIR}/tests/data/unity/scopes/testscope2.scope)
-configure_file (${CMAKE_CURRENT_SOURCE_DIR}/data/unity/scopes/testscope3.scope
-                ${CMAKE_BINARY_DIR}/tests/data/unity/scopes/testscope3.scope)
-configure_file (${CMAKE_CURRENT_SOURCE_DIR}/data/unity/scopes/testscope4.scope
-                ${CMAKE_BINARY_DIR}/tests/data/unity/scopes/testscope4.scope)
-configure_file (${CMAKE_CURRENT_SOURCE_DIR}/data/unity/scopes/commands.scope
-                ${CMAKE_BINARY_DIR}/tests/data/unity/scopes/commands.scope)
-configure_file (${CMAKE_CURRENT_SOURCE_DIR}/data/unity/sounds/brownnoise.mp3
-                ${CMAKE_BINARY_DIR}/tests/data/unity/sounds/brownnoise.mp3 COPYONLY)
-configure_file (${CMAKE_CURRENT_SOURCE_DIR}/data/unity/sounds/pinknoise.mp3
-                ${CMAKE_BINARY_DIR}/tests/data/unity/sounds/pinknoise.mp3 COPYONLY)
-configure_file (${CMAKE_CURRENT_SOURCE_DIR}/data/unity/sounds/whitenoise.mp3
-                ${CMAKE_BINARY_DIR}/tests/data/unity/sounds/whitenoise.mp3 COPYONLY)
+file (COPY ${CMAKE_CURRENT_SOURCE_DIR}/data DESTINATION ${CMAKE_BINARY_DIR}/tests)
 
 #
 # Unit tests
@@ -51,6 +23,7 @@ link_directories(${TEST_UNIT_DEPS_LIBRARY_DIRS} ${COMPIZ_LIBDIR})
 include_directories (. .. ../services ../UnityCore ${UNITY_SRC} ${CMAKE_BINARY_DIR})
 include_directories (${CMAKE_SOURCE_DIR}/plugins/unity-mt-grab-handles/src)
 include_directories (${CMAKE_SOURCE_DIR}/dash)
+include_directories (${CMAKE_SOURCE_DIR}/decorations)
 include_directories (${CMAKE_SOURCE_DIR}/launcher)
 include_directories (${CMAKE_SOURCE_DIR}/panel)
 include_directories (${CMAKE_SOURCE_DIR}/hud)
@@ -134,6 +107,7 @@ if (GMOCK_LIB AND
        test_animation_utils.cpp
        test_connection_manager.cpp
        test_delta_tracker.cpp
+       test_em_converter.cpp
        test_glib_dbus_object.cpp
        test_glib_cancellable.cpp
        test_glib_object.cpp
@@ -152,6 +126,7 @@ if (GMOCK_LIB AND
        test_indicator_appmenu.cpp
        test_indicator_entry.cpp
        test_indicators.cpp
+       test_introspection_data.cpp
        test_favorite_store.cpp
        test_favorite_store_gsettings.cpp
        test_favorite_store_private.cpp
@@ -161,6 +136,7 @@ if (GMOCK_LIB AND
        test_layout_system.cpp
        test_model_iterator.cpp
        test_previews.cpp
+       test_raw_pixel.cpp
        test_scope_data.cpp
        test_time_util.cpp
        test_ubus.cpp
@@ -238,6 +214,8 @@ if (ENABLE_X_SUPPORT)
                  test_application_launcher_icon.cpp
                  test_bamf_application.cpp
                  test_bfb_launcher_icon.cpp
+                 test_decorations_input_mixer.cpp
+                 test_decorations_widgets.cpp
                  test_dashview.cpp
                  test_dashview_impl.cpp
                  test_dash_controller.cpp
@@ -267,6 +245,7 @@ if (ENABLE_X_SUPPORT)
                  test_launcher_tooltip.cpp
                  test_panel_controller.cpp
                  test_panel_indicators_view.cpp
+                 test_panel_indicator_entry_dropdown_view.cpp
                  test_panel_menu_view.cpp
                  test_panel_service.cpp
                  test_panel_style.cpp
@@ -329,22 +308,24 @@ if (ENABLE_X_SUPPORT)
               gmockmount.c
               gmockvolume.c
               )
+
   target_link_libraries(test-gtest
+                        ${LIBS}
                         test-libs-c
                         gtest
                         gmock
-                        unity-shared
-                        ${LIBS}
-                        launcher-lib
-                        unity-shared-bamf
-                        unity-shared-standalone
-                        shortcuts-lib
-                        previews-lib
-                        hud-lib
-                        switcher-lib
-                        shutdown-lib
                         dash-lib
-                        panel-lib)
+                        decorations-lib
+                        hud-lib
+                        launcher-lib
+                        panel-lib
+                        previews-lib
+                        shortcuts-lib
+                        shutdown-lib
+                        switcher-lib
+                        unity-shared
+                        unity-shared-bamf
+                        unity-shared-standalone)
   add_test(UnityGTest test-gtest)
 endif (ENABLE_X_SUPPORT)
 endif (GMOCK_LIB AND
