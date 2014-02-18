@@ -24,6 +24,7 @@
 #include "PluginAdapter.h"
 #include "CompizUtils.h"
 
+#include <scale/scale.h>
 #include <NuxCore/Logger.h>
 
 namespace unity
@@ -57,26 +58,23 @@ void PluginAdapter::Initialize(CompScreen* screen)
   global_instance.reset(new PluginAdapter(screen));
 }
 
-PluginAdapter::PluginAdapter(CompScreen* screen) :
-  m_Screen(screen),
-  _in_show_desktop (false),
-  _last_focused_window(nullptr)
-{
-  _spread_state = false;
-  _spread_windows_state = false;
-  _expo_state = false;
-  _vp_switch_started = false;
-
-  _grab_show_action = 0;
-  _grab_hide_action = 0;
-  _grab_toggle_action = 0;
-  _coverage_area_before_automaximize = 0.75;
-  bias_active_to_viewport = false;
-}
+PluginAdapter::PluginAdapter(CompScreen* screen)
+  : bias_active_to_viewport(false)
+  , m_Screen(screen)
+  , _coverage_area_before_automaximize(0.75)
+  , _spread_state(false)
+  , _spread_windows_state(false)
+  , _expo_state(false)
+  , _vp_switch_started(false)
+  , _in_show_desktop(false)
+  , _grab_show_action(nullptr)
+  , _grab_hide_action(nullptr)
+  , _grab_toggle_action(nullptr)
+  , _last_focused_window(nullptr)
+{}
 
 PluginAdapter::~PluginAdapter()
-{
-}
+{}
 
 /* A No-op for now, but could be useful later */
 void PluginAdapter::OnScreenGrabbed()
@@ -291,7 +289,7 @@ void MultiActionList::TerminateAll(CompOption::Vector const& extra_args) const
 
   if (primary_action_)
   {
-    primary_action_->terminate()(primary_action_, 0, argument);
+    primary_action_->terminate()(primary_action_, CompAction::StateCancel, argument);
     return;
   }
 
@@ -340,13 +338,8 @@ std::string PluginAdapter::MatchStringForXids(std::vector<Window> const& windows
 {
   std::ostringstream sout;
 
-  sout << "any & (";
-
   for (auto const& window : windows)
-  {
-    sout << "| xid=" << window << " ";
-  }
-  sout << ")";
+    sout << "xid=" << window << " | ";
 
   return sout.str();
 }
@@ -367,17 +360,17 @@ void PluginAdapter::TerminateScale()
 
 bool PluginAdapter::IsScaleActive() const
 {
-  return m_Screen->grabExist("scale");
+  return _spread_state;
 }
 
 bool PluginAdapter::IsScaleActiveForGroup() const
 {
-  return _spread_windows_state && m_Screen->grabExist("scale");
+  return _spread_windows_state && _spread_state;
 }
 
 bool PluginAdapter::IsExpoActive() const
 {
-  return m_Screen->grabExist("expo");
+  return _expo_state;
 }
 
 bool PluginAdapter::IsWallActive() const
