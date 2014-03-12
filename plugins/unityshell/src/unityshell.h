@@ -109,6 +109,7 @@ class UnityScreen :
   public ScreenInterface,
   public CompositeScreenInterface,
   public GLScreenInterface,
+  public ScaleScreenInterface,
   public BaseSwitchScreen,
   public PluginClassHandler <UnityScreen, CompScreen>,
   public CompAction::Container,
@@ -171,6 +172,9 @@ public:
   /* handle showdesktop */
   void enterShowDesktopMode ();
   void leaveShowDesktopMode (CompWindow *w);
+
+   /* window scaling */
+  bool layoutSlotsAndAssignWindows();
 
   bool showMenuBarInitiate(CompAction* action, CompAction::State state, CompOption::Vector& options);
   bool showMenuBarTerminate(CompAction* action, CompAction::State state, CompOption::Vector& options);
@@ -274,8 +278,7 @@ private:
 
   void OnLauncherStartKeyNav(GVariant* data);
   void OnLauncherEndKeyNav(GVariant* data);
-
-  void OnSwitcherEnd(GVariant* data);
+  void OnSwitcherDetailChanged(bool detail);
 
   void OnInitiateSpread();
   void OnTerminateSpread();
@@ -305,6 +308,8 @@ private:
   bool getMipmap () override { return false; }
 
   void DamageBlurUpdateRegion(nux::Geometry const&);
+
+  void ShowFirstRunHints();
 
   std::unique_ptr<na::TickSource> tick_source_;
   std::unique_ptr<na::AnimationController> animation_controller_;
@@ -552,6 +557,7 @@ private:
   nux::Geometry close_button_geo_;
   std::shared_ptr<decoration::Window> deco_win_;
   bool middle_clicked_;
+  bool need_fake_deco_redraw_;
   bool is_nux_window_;
   glib::Source::UniquePtr focus_desktop_timeout_;
 

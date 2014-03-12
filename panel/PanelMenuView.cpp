@@ -131,6 +131,7 @@ void PanelMenuView::SetupPanelMenuViewSignals()
   auto const& deco_style = decoration::Style::Get();
   lim_changed_connection_ = deco_style->integrated_menus.changed.connect([this] (bool lim) {
     integrated_menus_ = lim;
+    new_application_ = nullptr;
     if (!integrated_menus_)
     {
       auto mouse = nux::GetGraphicsDisplay()->GetMouseScreenCoord();
@@ -693,22 +694,30 @@ std::string PanelMenuView::GetActiveViewName(bool use_appname) const
   if (BAMF_IS_WINDOW(window))
   {
     BamfView *view = reinterpret_cast<BamfView*>(window);
-    std::vector<Window> const& our_xids = nux::XInputWindow::NativeHandleList();
     Window window_xid = bamf_window_get_xid(window);
 
-    if (std::find(our_xids.begin(), our_xids.end(), window_xid) != our_xids.end())
+    if (bamf_window_get_window_type(window) == BAMF_WINDOW_DOCK)
     {
-      /* If the active window is an unity window, we need to fallback to the
-       * top one, anyway we should always avoid to focus unity internal windows */
-      BamfWindow* top_win = GetBamfWindowForXid(GetTopWindow());
+      auto panel = const_cast<PanelMenuView*>(this)->GetTopLevelViewWindow();
+      if (static_cast<nux::BaseWindow*>(panel)->GetInputWindowId() == window_xid)
+        return desktop_name_;
 
-      if (top_win && top_win != window)
+      std::vector<Window> const& our_xids = nux::XInputWindow::NativeHandleList();
+
+      if (std::find(our_xids.begin(), our_xids.end(), window_xid) != our_xids.end())
       {
-        window = top_win;
-      }
-      else
-      {
-        return "";
+        /* If the active window is an unity window, we need to fallback to the
+         * top one, anyway we should always avoid to focus unity internal windows */
+        BamfWindow* top_win = GetBamfWindowForXid(GetTopWindow());
+
+        if (top_win && top_win != window)
+        {
+          window = top_win;
+        }
+        else
+        {
+          return "";
+        }
       }
     }
 
@@ -718,7 +727,7 @@ std::string PanelMenuView::GetActiveViewName(bool use_appname) const
     }
     else if (!IsValidWindow(window_xid))
     {
-       return "";
+      return "";
     }
 
     if (WindowManager::Default().IsWindowMaximized(window_xid) && !use_appname)
@@ -920,11 +929,16 @@ void PanelMenuView::NotifyAllMenusClosed()
 {
   last_active_view_ = nullptr;
 
-  if (integrated_menus_ && is_maximized_)
+  if (!integrated_menus_ || is_maximized_)
   {
     auto mouse = nux::GetGraphicsDisplay()->GetMouseScreenCoord();
-    is_inside_ = GetAbsoluteGeometry().IsInside(mouse);
-    FullRedraw();
+    bool inside = GetAbsoluteGeometry().IsInside(mouse);
+
+    if (is_inside_ != inside)
+    {
+      is_inside_ = inside;
+      QueueDraw();
+    }
   }
 }
 
@@ -973,7 +987,7 @@ void PanelMenuView::OnViewOpened(BamfMatcher *matcher, BamfView *view)
 
 void PanelMenuView::OnApplicationClosed(BamfApplication* app)
 {
-  if (BAMF_IS_APPLICATION(app))
+  if (BAMF_IS_APPLICATION(app) && !integrated_menus_)
   {
     if (std::find(new_apps_.begin(), new_apps_.end(), app) != new_apps_.end())
     {
@@ -1021,9 +1035,11 @@ void PanelMenuView::OnActiveAppChanged(BamfMatcher *matcher,
 {
   if (BAMF_IS_APPLICATION(new_app))
   {
-    app_name_changed_signal_.Disconnect();
     app_name_changed_signal_.Connect(BAMF_VIEW(new_app), "name-changed",
                                      sigc::mem_fun(this, &PanelMenuView::OnNameChanged));
+
+    if (integrated_menus_)
+      return;
 
     if (std::find(new_apps_.begin(), new_apps_.end(), new_app) != new_apps_.end())
     {
@@ -1144,6 +1160,11 @@ void PanelMenuView::OnWindowMinimized(Window xid)
     if (Refresh())
       QueueDraw();
   }
+  else if (integrated_menus_ && window_buttons_->controlled_window == xid)
+  {
+    if (Refresh())
+      QueueDraw();
+  }
 }
 
 void PanelMenuView::OnWindowUnminimized(Window xid)
@@ -1152,6 +1173,11 @@ void PanelMenuView::OnWindowUnminimized(Window xid)
     maximized_set_.insert(xid);
 
   if (xid == active_xid_)
+  {
+    if (Refresh())
+      QueueDraw();
+  }
+  else if (integrated_menus_ && IsWindowUnderOurControl(xid))
   {
     if (Refresh())
       QueueDraw();
@@ -1165,6 +1191,11 @@ void PanelMenuView::OnWindowUnmapped(Window xid)
   maximized_set_.erase(xid);
 
   if (xid == active_xid_)
+  {
+    if (Refresh())
+      QueueDraw();
+  }
+  else if (integrated_menus_ && window_buttons_->controlled_window == xid)
   {
     if (Refresh())
       QueueDraw();
@@ -1199,6 +1230,11 @@ void PanelMenuView::OnWindowMaximized(Window xid)
     if (Refresh())
       FullRedraw();
   }
+  else if (integrated_menus_ && IsWindowUnderOurControl(xid))
+  {
+    if (Refresh())
+      QueueDraw();
+  }
 }
 
 void PanelMenuView::OnWindowRestored(Window xid)
@@ -1212,6 +1248,11 @@ void PanelMenuView::OnWindowRestored(Window xid)
 
     if (Refresh())
       FullRedraw();
+  }
+  else if (integrated_menus_ && window_buttons_->controlled_window == xid)
+  {
+    if (Refresh())
+      QueueDraw();
   }
 }
 
