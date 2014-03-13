@@ -930,9 +930,10 @@ void UnityScreen::DrawPanelUnderDash()
 bool UnityScreen::forcePaintOnTop()
 {
     return !allowWindowPaint ||
-      ((switcher_controller_->Visible() ||
-        WindowManager::Default().IsExpoActive())
-       && !fullscreen_windows_.empty () && (!(screen->grabbed () && !screen->otherGrabExist (NULL))));
+           lockscreen_controller_->IsLocked() ||
+          ((switcher_controller_->Visible() ||
+            WindowManager::Default().IsExpoActive())
+           && !fullscreen_windows_.empty () && (!(screen->grabbed () && !screen->otherGrabExist (NULL))));
 }
 
 void UnityScreen::EnableCancelAction(CancelActionTarget target, bool enabled, int modifiers)
@@ -2197,6 +2198,8 @@ bool UnityScreen::altTabInitiateCommon(CompAction* action, switcher::ShowMode sh
       grab_index_ = screen->pushGrab (screen->normalCursor(), "unity-switcher");
     }
   }
+
+  launcher_controller_->ClearTooltips();
 
   /* Create a new keybinding for scroll buttons and current modifiers */
   CompAction scroll_up;
@@ -3718,6 +3721,21 @@ void UnityScreen::OnDashRealized()
   }
 }
 
+void UnityScreen::LockscreenRequested()
+{
+  if (switcher_controller_->Visible())
+  {
+    switcher_controller_->Hide(false);
+  }
+  else if (launcher_controller_->IsOverlayOpen())
+  {
+    dash_controller_->HideDash();
+    hud_controller_->HideHud();
+  }
+
+  launcher_controller_->ClearTooltips();
+}
+
 /* Start up the launcher */
 void UnityScreen::initLauncher()
 {
@@ -3776,6 +3794,8 @@ void UnityScreen::initLauncher()
   // Setup Lockscreen Controller
   lockscreen_controller_ = std::make_shared<lockscreen::Controller>(manager);
   UpdateActivateIndicatorsKey();
+
+  manager->lock_requested.connect(sigc::mem_fun(this, &UnityScreen::LockscreenRequested));
 
   auto on_launcher_size_changed = [this] (nux::Area* area, int w, int h) {
     /* The launcher geometry includes 1px used to draw the right margin
