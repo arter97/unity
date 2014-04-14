@@ -1984,10 +1984,10 @@ void UnityScreen::handleCompizEvent(const char* plugin,
     ubus_manager_.SendMessage(UBUS_OVERLAY_CLOSE_REQUEST);
   }
 
-  if (adapter.IsScaleActive() && g_strcmp0(plugin, "scale") == 0 &&
-      super_keypressed_)
+  if (super_keypressed_ && g_strcmp0(plugin, "scale") == 0 &&
+      g_strcmp0(event, "activate") == 0)
   {
-    scale_just_activated_ = true;
+    scale_just_activated_ = CompOption::getBoolOptionNamed(option, "active");
   }
 
   screen->handleCompizEvent(plugin, event, option);
@@ -2222,6 +2222,9 @@ bool UnityScreen::altTabInitiateCommon(CompAction* action, switcher::ShowMode sh
 
 void UnityScreen::SetUpAndShowSwitcher(switcher::ShowMode show_mode)
 {
+  if(lockscreen_controller_->IsLocked())
+    return;
+
   RaiseInputWindows();
 
   if (!optionGetAltTabBiasViewport())
@@ -3863,6 +3866,11 @@ switcher::Controller::Ptr UnityScreen::switcher_controller()
 launcher::Controller::Ptr UnityScreen::launcher_controller()
 {
   return launcher_controller_;
+}
+
+std::shared_ptr<lockscreen::Controller> UnityScreen::lockscreen_controller()
+{
+  return lockscreen_controller_;
 }
 
 void UnityScreen::InitGesturesSupport()
