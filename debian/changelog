@@ -1,3 +1,12 @@
+unity (7.2.0+14.04.20140423-0ubuntu1.1) trusty-security; urgency=medium
+
+  * SECURITY UPDATE: lock screen bypass (LP: #1313885)
+    - debian/patches/lp1313885.patch: improve lockscreen logic in
+      lockscreen/LockScreenController.cpp, lockscreen/LockScreenShield.*,
+      plugins/unityshell/src/unityshell.*.
+
+ -- Marc Deslauriers <marc.deslauriers@ubuntu.com>  Mon, 28 Apr 2014 22:29:13 -0400
+
 unity (7.2.0+14.04.20140423-0ubuntu1) trusty; urgency=low
 
   [ Chris Townsend ]

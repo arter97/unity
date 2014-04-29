@@ -1,0 +1,175 @@
+Description: fix lock screen bypass
+Origin: other, https://code.launchpad.net/~3v1n0/unity/lockscreen-keys-disable/+merge/217528
+Bug-Ubuntu: https://bugs.launchpad.net/ubuntu/+source/unity/+bug/1313885
+
+Index: unity-7.2.0+14.04.20140423/lockscreen/LockScreenController.cpp
+===================================================================
+--- unity-7.2.0+14.04.20140423.orig/lockscreen/LockScreenController.cpp	2014-04-23 10:39:35.000000000 -0400
++++ unity-7.2.0+14.04.20140423/lockscreen/LockScreenController.cpp	2014-04-28 22:28:58.367775391 -0400
+@@ -160,6 +160,7 @@
+       primary_shield_ = shield;
+       primary_shield_->CheckCapsLockPrompt();
+       shield->primary = true;
++      nux::GetWindowCompositor().SetAlwaysOnFrontWindow(primary_shield_.GetPointer());
+       auto move_cb = sigc::mem_fun(this, &Controller::OnPrimaryShieldMotion);
+       motion_connection_ = shield->grab_motion.connect(move_cb);
+       auto key_cb = sigc::hide(sigc::hide(sigc::mem_fun(this, &Controller::ResetPostLockScreenSaver)));
+@@ -220,7 +221,7 @@
+     blank_window_->SetBackgroundLayer(new nux::ColorLayer(nux::color::Black, true));
+     blank_window_->SetOpacity(blank_window_animator_.GetCurrentValue());
+     blank_window_->ShowWindow(true);
+-    blank_window_->PushToFront();
++    nux::GetWindowCompositor().SetAlwaysOnFrontWindow(blank_window_.GetPointer());
+   }
+ 
+   blank_window_->SetGeometry(screen_geo);
+@@ -264,7 +265,7 @@
+     blank_window_->EnableInputWindow(true);
+     blank_window_->GrabPointer();
+     blank_window_->GrabKeyboard();
+-    blank_window_->PushToFront();
++    nux::GetWindowCompositor().SetAlwaysOnFrontWindow(blank_window_.GetPointer());
+ 
+     blank_window_->mouse_move.connect([this](int, int, int dx, int dy, unsigned long, unsigned long) {
+       if ((dx || dy) && !lockscreen_timeout_) HideBlankWindow();
+@@ -408,6 +409,7 @@
+     shield->PushToFront();
+   });
+ 
++  nux::GetWindowCompositor().SetAlwaysOnFrontWindow(primary_shield_.GetPointer());
+   animation::StartOrReverse(fade_animator_, animation::Direction::FORWARD);
+ }
+ 
+Index: unity-7.2.0+14.04.20140423/lockscreen/LockScreenShield.cpp
+===================================================================
+--- unity-7.2.0+14.04.20140423.orig/lockscreen/LockScreenShield.cpp	2014-04-23 10:39:35.000000000 -0400
++++ unity-7.2.0+14.04.20140423/lockscreen/LockScreenShield.cpp	2014-04-28 22:28:58.367775391 -0400
+@@ -154,8 +154,19 @@
+       }
+       else
+       {
+-        GrabPointer();
+-        GrabKeyboard();
++        auto& wc = nux::GetWindowCompositor();
++
++        if (!wc.GrabPointerAdd(this) || !wc.GrabKeyboardAdd(this))
++        {
++          regrab_conn_ = WindowManager::Default().screen_ungrabbed.connect([this] {
++            if (primary())
++            {
++              GrabPointer();
++              GrabKeyboard();
++            }
++            regrab_conn_->disconnect();
++          });
++        }
+       }
+     }
+   });
+Index: unity-7.2.0+14.04.20140423/lockscreen/LockScreenShield.h
+===================================================================
+--- unity-7.2.0+14.04.20140423.orig/lockscreen/LockScreenShield.h	2014-04-23 10:39:35.000000000 -0400
++++ unity-7.2.0+14.04.20140423/lockscreen/LockScreenShield.h	2014-04-28 22:28:58.371775391 -0400
+@@ -58,6 +58,7 @@
+   nux::ObjectPtr<nux::Layout> primary_layout_;
+   nux::ObjectPtr<nux::Layout> cof_layout_;
+   connection::Wrapper panel_active_conn_;
++  connection::Wrapper regrab_conn_;
+   UserPromptView* prompt_view_;
+   Panel* panel_view_;
+ };
+Index: unity-7.2.0+14.04.20140423/plugins/unityshell/src/unityshell.cpp
+===================================================================
+--- unity-7.2.0+14.04.20140423.orig/plugins/unityshell/src/unityshell.cpp	2014-04-23 10:39:50.000000000 -0400
++++ unity-7.2.0+14.04.20140423/plugins/unityshell/src/unityshell.cpp	2014-04-28 22:28:58.371775391 -0400
+@@ -2027,9 +2027,6 @@
+                                           CompAction::State state,
+                                           CompOption::Vector& options)
+ {
+-  if (lockscreen_controller_->IsLocked())
+-    return true;
+-
+   // to receive the Terminate event
+   if (state & CompAction::StateInitKey)
+     action->setState(action->state() | CompAction::StateTermKey);
+@@ -2226,9 +2223,6 @@
+ 
+ void UnityScreen::SetUpAndShowSwitcher(switcher::ShowMode show_mode)
+ {
+-  if(lockscreen_controller_->IsLocked())
+-    return;
+-
+   RaiseInputWindows();
+ 
+   if (!optionGetAltTabBiasViewport())
+@@ -2481,8 +2475,7 @@
+     return false; // early exit if the switcher is open
+   }
+ 
+-  if (PluginAdapter::Default().IsTopWindowFullscreenOnMonitorWithMouse() ||
+-      lockscreen_controller_->IsLocked())
++  if (PluginAdapter::Default().IsTopWindowFullscreenOnMonitorWithMouse())
+   {
+     return false;
+   }
+@@ -3752,6 +3745,36 @@
+   RaiseOSK();
+ }
+ 
++void UnityScreen::OnScreenLocked()
++{
++  SaveLockStamp(true);
++
++  for (auto& option : getOptions())
++  {
++    if (option.isAction())
++    {
++      auto& value = option.value();
++
++      if (value != mOptions[UnityshellOptions::PanelFirstMenu].value())
++        screen->removeAction(&value.action());
++    }
++  }
++
++  // We notify that super has been released, to avoid to leave unity in inconsistent state
++  showLauncherKeyTerminate(&optionGetShowLauncher(), CompAction::StateTermKey, getOptions());
++}
++
++void UnityScreen::OnScreenUnlocked()
++{
++  SaveLockStamp(false);
++
++  for (auto& option : getOptions())
++  {
++    if (option.isAction())
++      screen->addAction(&option.value().action());
++  }
++}
++
+ void UnityScreen::SaveLockStamp(bool save)
+ {
+   auto const& cache_dir = DesktopUtilities::GetUserRuntimeDirectory();
+@@ -3845,8 +3868,8 @@
+   auto manager = std::make_shared<session::GnomeManager>();
+   manager->lock_requested.connect(sigc::mem_fun(this, &UnityScreen::OnLockScreenRequested));
+   manager->prompt_lock_requested.connect(sigc::mem_fun(this, &UnityScreen::OnLockScreenRequested));
+-  manager->locked.connect(sigc::bind(sigc::mem_fun(this, &UnityScreen::SaveLockStamp), true));
+-  manager->unlocked.connect(sigc::bind(sigc::mem_fun(this, &UnityScreen::SaveLockStamp), false));
++  manager->locked.connect(sigc::mem_fun(this, &UnityScreen::OnScreenLocked));
++  manager->unlocked.connect(sigc::mem_fun(this, &UnityScreen::OnScreenUnlocked));
+   session_dbus_manager_ = std::make_shared<session::DBusManager>(manager);
+   session_controller_ = std::make_shared<session::Controller>(manager);
+   AddChild(session_controller_.get());
+Index: unity-7.2.0+14.04.20140423/plugins/unityshell/src/unityshell.h
+===================================================================
+--- unity-7.2.0+14.04.20140423.orig/plugins/unityshell/src/unityshell.h	2014-04-23 10:39:35.000000000 -0400
++++ unity-7.2.0+14.04.20140423/plugins/unityshell/src/unityshell.h	2014-04-28 22:28:58.371775391 -0400
+@@ -233,6 +233,8 @@
+   void OnMinimizeDurationChanged();
+ 
+   void OnLockScreenRequested();
++  void OnScreenLocked();
++  void OnScreenUnlocked();
+   void SaveLockStamp(bool);
+ 
+   switcher::Controller::Ptr switcher_controller();
