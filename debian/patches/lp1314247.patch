@@ -1,0 +1,244 @@
+Description: Fix more lock screen bypass issues, and fix regression with shutdown dialog
+Origin: other, https://code.launchpad.net/~3v1n0/unity/menus-grab-races-fix/+merge/217660
+Origin: other, https://code.launchpad.net/~3v1n0/unity/lockscreen-keys-disable
+Bug-Ubuntu: https://bugs.launchpad.net/ubuntu/+source/unity/+bug/1314247
+
+Index: unity-7.2.0+14.04.20140423/lockscreen/LockScreenShield.cpp
+===================================================================
+--- unity-7.2.0+14.04.20140423.orig/lockscreen/LockScreenShield.cpp	2014-04-30 11:36:53.389526915 -0400
++++ unity-7.2.0+14.04.20140423/lockscreen/LockScreenShield.cpp	2014-04-30 11:36:53.381526915 -0400
+@@ -149,6 +149,7 @@
+     {
+       if (active)
+       {
++        regrab_conn_->disconnect();
+         UnGrabPointer();
+         UnGrabKeyboard();
+       }
+Index: unity-7.2.0+14.04.20140423/services/panel-service.c
+===================================================================
+--- unity-7.2.0+14.04.20140423.orig/services/panel-service.c	2014-04-30 11:36:53.389526915 -0400
++++ unity-7.2.0+14.04.20140423/services/panel-service.c	2014-04-30 11:36:53.381526915 -0400
+@@ -2159,12 +2159,24 @@
+       g_signal_connect_after (priv->last_menu, "move-current",
+                               G_CALLBACK (on_active_menu_move_current), self);
+ 
+-      gtk_menu_popup (priv->last_menu, NULL, NULL, positon_menu, self, 0, CurrentTime);
+-      gtk_menu_reposition (priv->last_menu);
++      gtk_menu_shell_set_take_focus (GTK_MENU_SHELL (priv->last_menu), TRUE);
++      gtk_menu_popup (priv->last_menu, NULL, NULL, positon_menu, self, button, CurrentTime);
++      gboolean visible = gtk_widget_is_visible (GTK_WIDGET (priv->last_menu));
+ 
+-      GdkWindow *gdkwin = gtk_widget_get_window (GTK_WIDGET (priv->last_menu));
+-      if (gdkwin != NULL)
++      if (!visible)
+         {
++          /* If the menu is not visible at this point, it's very likely that's
++           * due to a keyboard grab, so let's try with a menu with no key-grab */
++          gtk_menu_shell_set_take_focus (GTK_MENU_SHELL (priv->last_menu), FALSE);
++          gtk_menu_popup (priv->last_menu, NULL, NULL, positon_menu, self, button, CurrentTime);
++          visible = gtk_widget_is_visible (GTK_WIDGET (priv->last_menu));
++        }
++
++      if (visible)
++        {
++          gtk_menu_reposition (priv->last_menu);
++
++          GdkWindow *gdkwin = gtk_widget_get_window (GTK_WIDGET (priv->last_menu));
+           gint left=0, top=0, width=0, height=0;
+ 
+           gdk_window_get_geometry (gdkwin, NULL, NULL, &width, &height);
+@@ -2182,10 +2194,7 @@
+         }
+       else
+         {
+-          priv->last_left = 0;
+-          priv->last_right = 0;
+-          priv->last_top = 0;
+-          priv->last_bottom = 0;
++          on_active_menu_hidden (priv->last_menu, self);
+         }
+     }
+ 
+Index: unity-7.2.0+14.04.20140423/lockscreen/LockScreenPanel.cpp
+===================================================================
+--- unity-7.2.0+14.04.20140423.orig/lockscreen/LockScreenPanel.cpp	2014-04-30 11:36:53.389526915 -0400
++++ unity-7.2.0+14.04.20140423/lockscreen/LockScreenPanel.cpp	2014-04-30 11:36:53.381526915 -0400
+@@ -192,6 +192,13 @@
+     return;
+ 
+   bool active = !entry_id.empty();
++
++  if (active && !WindowManager::Default().IsScreenGrabbed())
++  {
++    // The menu didn't grab the keyboard, let's take it back.
++    nux::GetWindowCompositor().GrabKeyboardAdd(static_cast<nux::BaseWindow*>(GetTopLevelViewWindow()));
++  }
++
+   if (active && !track_menu_pointer_timeout_)
+   {
+     track_menu_pointer_timeout_.reset(new glib::Timeout(16));
+Index: unity-7.2.0+14.04.20140423/plugins/unityshell/src/unityshell.cpp
+===================================================================
+--- unity-7.2.0+14.04.20140423.orig/plugins/unityshell/src/unityshell.cpp	2014-04-30 11:36:53.389526915 -0400
++++ unity-7.2.0+14.04.20140423/plugins/unityshell/src/unityshell.cpp	2014-04-30 11:36:53.385526915 -0400
+@@ -3727,21 +3727,30 @@
+ void UnityScreen::OnLockScreenRequested()
+ {
+   if (switcher_controller_->Visible())
+-  {
+     switcher_controller_->Hide(false);
+-  }
+-  else if (launcher_controller_->IsOverlayOpen())
+-  {
++
++  if (dash_controller_->IsVisible())
+     dash_controller_->HideDash();
++
++  if (hud_controller_->IsVisible())
+     hud_controller_->HideHud();
+-  }
+ 
+   launcher_controller_->ClearTooltips();
+ 
++  if (launcher_controller_->KeyNavIsActive())
++    launcher_controller_->KeyNavTerminate(false);
++
++  if (QuicklistManager::Default()->Current())
++    QuicklistManager::Default()->Current()->Hide();
++
+   auto& wm = WindowManager::Default();
++
+   if (wm.IsScaleActive())
+     wm.TerminateScale();
+ 
++  if (wm.IsExpoActive())
++    wm.TerminateExpo();
++
+   RaiseOSK();
+ }
+ 
+@@ -3760,8 +3769,12 @@
+     }
+   }
+ 
+-  // We notify that super has been released, to avoid to leave unity in inconsistent state
++  for (auto& action : getActions())
++    screen->removeAction(&action);
++
++  // We notify that super/alt have been released, to avoid to leave unity in inconsistent state
+   showLauncherKeyTerminate(&optionGetShowLauncher(), CompAction::StateTermKey, getOptions());
++  showMenuBarTerminate(&optionGetShowMenuBar(), CompAction::StateTermKey, getOptions());
+ }
+ 
+ void UnityScreen::OnScreenUnlocked()
+@@ -3773,6 +3786,9 @@
+     if (option.isAction())
+       screen->addAction(&option.value().action());
+   }
++
++  for (auto& action : getActions())
++    screen->addAction(&action);
+ }
+ 
+ void UnityScreen::SaveLockStamp(bool save)
+Index: unity-7.2.0+14.04.20140423/lockscreen/LockScreenController.cpp
+===================================================================
+--- unity-7.2.0+14.04.20140423.orig/lockscreen/LockScreenController.cpp	2014-04-30 11:36:53.389526915 -0400
++++ unity-7.2.0+14.04.20140423/lockscreen/LockScreenController.cpp	2014-04-30 11:36:53.385526915 -0400
+@@ -69,9 +69,14 @@
+     EnsureShields(monitors);
+     EnsureBlankWindow();
+   });
+-
+   uscreen_connection_->block();
+ 
++  hidden_window_connection_ = nux::GetWindowCompositor().sigHiddenViewWindow.connect([this] (nux::BaseWindow*) {
++    // Another view (i.e. the shutdown dialog) might have taken the role of AlwaysOnFront window
++    nux::GetWindowCompositor().SetAlwaysOnFrontWindow(primary_shield_.GetPointer());
++  });
++  hidden_window_connection_->block();
++
+   suspend_connection_ = uscreen->suspending.connect([this] {
+     if (Settings::Instance().lock_on_suspend())
+       session_manager_->PromptLockScreen();
+@@ -98,6 +103,7 @@
+       motion_connection_->disconnect();
+       key_connection_->disconnect();
+       uscreen_connection_->block();
++      hidden_window_connection_->block();
+       session_manager_->unlocked.emit();
+ 
+       std::for_each(shields_.begin(), shields_.end(), [](nux::ObjectPtr<Shield> const& shield) {
+@@ -402,6 +408,7 @@
+   WindowManager::Default().SaveInputFocus();
+   EnsureShields(UScreen::GetDefault()->GetMonitors());
+   uscreen_connection_->unblock();
++  hidden_window_connection_->unblock();
+ 
+   std::for_each(shields_.begin(), shields_.end(), [] (nux::ObjectPtr<Shield> const& shield) {
+     shield->SetOpacity(0.0f);
+Index: unity-7.2.0+14.04.20140423/lockscreen/LockScreenController.h
+===================================================================
+--- unity-7.2.0+14.04.20140423.orig/lockscreen/LockScreenController.h	2014-04-30 11:36:53.389526915 -0400
++++ unity-7.2.0+14.04.20140423/lockscreen/LockScreenController.h	2014-04-30 11:36:53.385526915 -0400
+@@ -86,6 +86,7 @@
+ 
+   connection::Wrapper uscreen_connection_;
+   connection::Wrapper suspend_connection_;
++  connection::Wrapper hidden_window_connection_;
+   connection::Wrapper motion_connection_;
+   connection::Wrapper key_connection_;
+ 
+Index: unity-7.2.0+14.04.20140423/shutdown/SessionController.cpp
+===================================================================
+--- unity-7.2.0+14.04.20140423.orig/shutdown/SessionController.cpp	2014-04-30 11:36:53.389526915 -0400
++++ unity-7.2.0+14.04.20140423/shutdown/SessionController.cpp	2014-04-30 11:36:53.385526915 -0400
+@@ -101,8 +101,8 @@
+   view_->live_background = true;
+ 
+   view_window_->ShowWindow(true);
+-  view_window_->PushToFront();
+   view_window_->SetInputFocus();
++  nux::GetWindowCompositor().SetAlwaysOnFrontWindow(view_window_.GetPointer());
+   nux::GetWindowCompositor().SetKeyFocusArea(view_->key_focus_area());
+   animation::StartOrReverse(fade_animator_, animation::Direction::FORWARD);
+ }
+@@ -175,17 +175,19 @@
+ 
+ void Controller::Hide()
+ {
+-  animation::StartOrReverse(fade_animator_, animation::Direction::BACKWARD);
++  if (view_window_)
++    animation::StartOrReverse(fade_animator_, animation::Direction::BACKWARD);
+ }
+ 
+ void Controller::CloseWindow()
+ {
+-  view_window_->PushToBack();
+-  view_window_->ShowWindow(false);
+   view_window_->UnGrabPointer();
+   view_window_->UnGrabKeyboard();
++  view_window_->ShowWindow(false);
+   view_window_->EnableInputWindow(false);
+-  view_->live_background = false;
++
++  view_ = nullptr;
++  view_window_ = nullptr;
+ 
+   nux::GetWindowCompositor().SetKeyFocusArea(nullptr);
+   WindowManager::Default().RestoreInputFocus();
+Index: unity-7.2.0+14.04.20140423/tests/test_session_controller.cpp
+===================================================================
+--- unity-7.2.0+14.04.20140423.orig/tests/test_session_controller.cpp	2014-04-23 10:39:35.000000000 -0400
++++ unity-7.2.0+14.04.20140423/tests/test_session_controller.cpp	2014-04-30 11:37:21.193526189 -0400
+@@ -105,7 +105,8 @@
+   tick_source.tick(ANIMATION_DURATION);
+ 
+   EXPECT_FALSE(controller.Visible());
+-  EXPECT_FALSE(controller.view_->live_background());
++  EXPECT_FALSE(controller.view_window_.IsValid());
++  EXPECT_FALSE(controller.view_.IsValid());
+ }
+ 
+ struct Inhibited : TestSessionController, testing::WithParamInterface<bool> {};
