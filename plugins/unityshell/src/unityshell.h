@@ -233,6 +233,8 @@ public:
   void OnMinimizeDurationChanged();
 
   void OnLockScreenRequested();
+  void OnScreenLocked();
+  void OnScreenUnlocked();
   void SaveLockStamp(bool);
 
   switcher::Controller::Ptr switcher_controller();
@@ -391,6 +393,7 @@ private:
   CompRegion nuxRegion;
   CompRegion fullscreenRegion;
   CompWindow* firstWindowAboveShell;
+  CompWindow* onboard_;
 
   ::GLFramebufferObject *oldFbo;
 
@@ -419,6 +422,7 @@ private:
 
   UBusManager ubus_manager_;
   glib::SourceManager sources_;
+  connection::Wrapper hud_ungrab_slot_;
 
   CompRegion buffered_compiz_damage_this_frame_;
   CompRegion buffered_compiz_damage_last_frame_;
@@ -517,6 +521,7 @@ private:
   bool IsInShowdesktopMode ();
   bool IsShaded ();
   bool IsMinimized ();
+  bool CanBypassLockScreen() const;
   void DoOverrideFrameRegion (CompRegion &r);
 
   void DoHide ();
