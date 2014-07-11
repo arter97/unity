@@ -27,7 +27,6 @@
 #include "unity-shared/StaticCairoText.h"
 #include "unity-shared/CairoTexture.h"
 #include "unity-shared/GraphicsUtils.h"
-#include "unity-shared/RawPixel.h"
 #include "unity-shared/UBusMessages.h"
 
 namespace unity
@@ -71,6 +70,9 @@ void ScopeBar::UpdateScale(double scale)
 
   for (auto icon : icons_)
     icon->scale = scale;
+
+  QueueDraw();
+  QueueRelayout();
 }
 
 void ScopeBar::SetupLayout()

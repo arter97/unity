@@ -31,7 +31,6 @@
 #include "unity-shared/UBusWrapper.h"
 #include "unity-shared/PlacesOverlayVScrollBar.h"
 #include "unity-shared/GraphicsUtils.h"
-#include "unity-shared/RawPixel.h"
 
 #include "config.h"
 #include <glib/gi18n-lib.h>
@@ -250,6 +249,7 @@ void ScopeView::SetupViews(nux::Area* show_filters)
   no_results_ = new StaticCairoText("", NUX_TRACKER_LOCATION);
   no_results_->SetTextColor(nux::color::White);
   no_results_->SetVisible(false);
+  no_results_->SetScale(scale);
   scroll_layout_->AddView(no_results_, 1, nux::MINOR_POSITION_CENTER, nux::MINOR_SIZE_MATCHCONTENT);
 
   fscroll_view_ = new ScopeScrollView(new PlacesOverlayVScrollBar(NUX_TRACKER_LOCATION), NUX_TRACKER_LOCATION);
@@ -276,19 +276,17 @@ void ScopeView::UpdateScopeViewSize()
 {
   dash::Style const& style = dash::Style::Instance();
 
-  RawPixel const scope_filter_space = style.GetSpaceBetweenScopeAndFilters();
-  RawPixel const right_padding      = style.GetFilterViewRightPadding();
-  RawPixel const filter_width       = style.GetFilterBarWidth() +
-                                      style.GetFilterBarLeftPadding() +
-                                      style.GetFilterBarRightPadding();
+  int right_padding = style.GetFilterViewRightPadding().CP(scale);
+  int filter_width  = style.GetFilterBarWidth().CP(scale) +
+                      style.GetFilterBarLeftPadding().CP(scale) +
+                      style.GetFilterBarRightPadding().CP(scale);
 
-  double scale = this->scale();
-  layout_->SetSpaceBetweenChildren(scope_filter_space.CP(scale));
+  layout_->SetSpaceBetweenChildren(style.GetSpaceBetweenScopeAndFilters().CP(scale));
 
-  fscroll_view_->SetMinimumWidth(filter_width.CP(scale) + right_padding.CP(scale));
-  fscroll_view_->SetMaximumWidth(filter_width.CP(scale) + right_padding.CP(scale));
-  filter_bar_->SetMinimumWidth(filter_width.CP(scale));
-  filter_bar_->SetMaximumWidth(filter_width.CP(scale));
+  fscroll_view_->SetMinimumWidth(filter_width + right_padding);
+  fscroll_view_->SetMaximumWidth(filter_width + right_padding);
+  filter_bar_->SetMinimumWidth(filter_width);
+  filter_bar_->SetMaximumWidth(filter_width);
 }
 
 void ScopeView::UpdateScale(double scale)
@@ -299,6 +297,7 @@ void ScopeView::UpdateScale(double scale)
     group->scale = scale;
 
   filter_bar_->scale = scale;
+  no_results_->SetScale(scale);
 }
 
 void ScopeView::SetupCategories(Categories::Ptr const& categories)
