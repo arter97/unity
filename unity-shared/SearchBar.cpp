@@ -20,17 +20,24 @@
 #include "config.h"
 
 #include <Nux/Nux.h>
+#include <Nux/LayeredLayout.h>
 #include <Nux/HLayout.h>
 #include <Nux/VLayout.h>
+#include <Nux/TextEntry.h>
 #include <NuxCore/Logger.h>
 
+#include <gtk/gtk.h>
 #include <glib/gi18n-lib.h>
 
 #include "SearchBar.h"
 #include "CairoTexture.h"
 #include "DashStyle.h"
 #include "GraphicsUtils.h"
+#include "IconTexture.h"
+#include "IMTextEntry.h"
 #include "RawPixel.h"
+#include "SearchBarSpinner.h"
+#include "StaticCairoText.h"
 #include "UnitySettings.h"
 
 namespace unity
@@ -65,7 +72,7 @@ const RawPixel BOT_ARROW_MAX_HEIGHT = 8_em;
 const RawPixel FILTER_HORIZONTAL_MARGIN = 8_em;
 
 // Fonts
-const std::string HINT_LABEL_FONT_SIZE = "20px";
+const std::string HINT_LABEL_FONT_SIZE = "15"; // == 20px
 const std::string HINT_LABEL_FONT_STYLE = "Italic";
 const std::string HINT_LABEL_DEFAULT_FONT = "Ubuntu " + HINT_LABEL_FONT_STYLE + " " + HINT_LABEL_FONT_SIZE;
 
@@ -252,9 +259,8 @@ SearchBar::SearchBar(bool show_filter_hint, NUX_FILE_LINE_DECL)
     expand_icon_->mouse_click.connect(mouse_expand);
   }
 
-  sig_manager_.Add<void, GtkSettings*, GParamSpec*>(gtk_settings_get_default(), "notify::gtk-font-name",
-                                                    sigc::mem_fun(this, &SearchBar::OnFontChanged));
-  OnFontChanged(gtk_settings_get_default());
+  sig_manager_.Add<void, GtkSettings*>(gtk_settings_get_default(), "notify::gtk-font-name", sigc::hide(sigc::mem_fun(this, &SearchBar::OnFontChanged)));
+  OnFontChanged();
 
   search_hint.changed.connect([this](std::string const& s) { OnSearchHintChanged(); });
   search_string.SetGetterFunction(sigc::mem_fun(this, &SearchBar::get_search_string));
@@ -263,6 +269,7 @@ SearchBar::SearchBar(bool show_filter_hint, NUX_FILE_LINE_DECL)
   im_preedit.SetGetterFunction(sigc::mem_fun(this, &SearchBar::get_im_preedit));
   showing_filters.changed.connect(sigc::mem_fun(this, &SearchBar::OnShowingFiltersChanged));
   scale.changed.connect(sigc::mem_fun(this, &SearchBar::UpdateScale));
+  Settings::Instance().font_scaling.changed.connect(sigc::hide(sigc::mem_fun(this, &SearchBar::UpdateSearchBarSize)));
   can_refine_search.changed.connect([this] (bool can_refine)
   {
     if (show_filter_hint_)
@@ -289,7 +296,8 @@ void SearchBar::UpdateSearchBarSize()
 
   entry_layout_->SetSpaceBetweenChildren(SPACE_BETWEEN_SPINNER_AND_TEXT.CP(scale()));
 
-  pango_entry_->SetFontSize(PANGO_ENTRY_FONT_SIZE.CP(scale()));
+  double font_scaling = scale() * Settings::Instance().font_scaling();
+  pango_entry_->SetFontSize(PANGO_ENTRY_FONT_SIZE.CP(font_scaling));
 
   if (show_filter_hint_)
   {
@@ -329,7 +337,7 @@ void SearchBar::UpdateSearchBarSize()
   layered_layout_->SetMinimumHeight(entry_min);
   layered_layout_->SetMaximumHeight(entry_min);
 
-  int search_bar_height = style.GetSearchBarHeight().CP(scale);
+  int search_bar_height = style.GetSearchBarHeight().CP(font_scaling);
   SetMinimumHeight(search_bar_height);
   SetMaximumHeight(search_bar_height);
 }
@@ -347,19 +355,19 @@ void SearchBar::UpdateScale(double scale)
   UpdateSearchBarSize();
 }
 
-void SearchBar::OnFontChanged(GtkSettings* settings, GParamSpec* pspec)
+void SearchBar::OnFontChanged()
 {
   glib::String font_name;
   PangoFontDescription* desc;
   std::ostringstream font_desc;
 
-  g_object_get(settings, "gtk-font-name", &font_name, NULL);
+  g_object_get(gtk_settings_get_default(), "gtk-font-name", &font_name, NULL);
 
   desc = pango_font_description_from_string(font_name.Value());
   if (desc)
   {
     pango_entry_->SetFontFamily(pango_font_description_get_family(desc));
-    pango_entry_->SetFontSize(PANGO_ENTRY_FONT_SIZE);
+    pango_entry_->SetFontSize(PANGO_ENTRY_FONT_SIZE.CP(scale * Settings::Instance().font_scaling()));
     pango_entry_->SetFontOptions(gdk_screen_get_font_options(gdk_screen_get_default()));
 
     font_desc << pango_font_description_get_family(desc) << " " << HINT_LABEL_FONT_STYLE << " " << HINT_LABEL_FONT_SIZE;
@@ -586,7 +594,7 @@ void SearchBar::UpdateBackground(bool force)
   cairo_set_source_rgba(cr, 1.0f, 1.0f, 1.0f, 0.7f);
   cairo_stroke(cr);
 
-  nux::BaseTexture* texture2D = texture_from_cairo_graphics(cairo_graphics);
+  auto texture2D = texture_ptr_from_cairo_graphics(cairo_graphics);
 
   nux::TexCoordXForm texxform;
   texxform.SetTexCoordType(nux::TexCoordXForm::OFFSET_COORD);
@@ -602,8 +610,6 @@ void SearchBar::UpdateBackground(bool force)
                                         nux::color::White,
                                         true,
                                         rop));
-
-  texture2D->UnReference();
 }
 
 void SearchBar::OnMouseButtonDown(int x, int y, unsigned long button, unsigned long key)

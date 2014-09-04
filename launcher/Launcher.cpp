@@ -1219,6 +1219,7 @@ void Launcher::OnMonitorChanged(int new_monitor)
   Resize(nux::Point(monitor_geo.x, monitor_geo.y + panel_height), monitor_geo.height - panel_height);
 
   icon_renderer_->monitor = new_monitor;
+  icon_renderer_->scale = cv_->DPIScale();
   SetIconSize(options()->tile_size, options()->icon_size);
 }
 
@@ -1516,10 +1517,7 @@ void Launcher::SetLauncherMinimizeWindow(bool click_to_minimize)
 
 void Launcher::SetIconSize(int tile_size, int icon_size)
 {
-  ui::IconRenderer::DestroyShortcutTextures();
-
   icon_size_ = tile_size;
-  icon_renderer_->scale = cv_->DPIScale();
   icon_renderer_->SetTargetSize(icon_size_.CP(cv_), RawPixel(icon_size).CP(cv_), SPACE_BETWEEN_ICONS.CP(cv_));
   AbstractLauncherIcon::icon_size = icon_size_;
 

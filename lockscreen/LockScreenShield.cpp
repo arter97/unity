@@ -30,6 +30,7 @@
 #include "LockScreenSettings.h"
 #include "UserPromptView.h"
 #include "unity-shared/UScreen.h"
+#include "unity-shared/UnitySettings.h"
 #include "unity-shared/WindowManager.h"
 
 namespace unity
@@ -42,19 +43,27 @@ DECLARE_LOGGER(logger, "unity.lockscreen.shield");
 const unsigned MAX_GRAB_WAIT = 50;
 }
 
-Shield::Shield(session::Manager::Ptr const& session_manager, indicator::Indicators::Ptr const& indicators, Accelerators::Ptr const& accelerators, int monitor_num, bool is_primary)
-  : AbstractShield(session_manager, indicators, accelerators, monitor_num, is_primary)
+Shield::Shield(session::Manager::Ptr const& session_manager,
+               indicator::Indicators::Ptr const& indicators,
+               Accelerators::Ptr const& accelerators,
+               nux::ObjectPtr<UserPromptView> const& prompt_view,
+               int monitor_num, bool is_primary)
+  : AbstractShield(session_manager, indicators, accelerators, prompt_view, monitor_num, is_primary)
   , bg_settings_(std::make_shared<BackgroundSettings>())
-  , prompt_view_(nullptr)
   , panel_view_(nullptr)
+  , cof_view_(nullptr)
 {
+  UpdateScale();
   is_primary ? ShowPrimaryView() : ShowSecondaryView();
 
   EnableInputWindow(true);
 
+  unity::Settings::Instance().dpi_changed.connect(sigc::mem_fun(this, &Shield::UpdateScale));
   geometry_changed.connect([this] (nux::Area*, nux::Geometry&) { UpdateBackgroundTexture();});
 
   monitor.changed.connect([this] (int monitor) {
+    UpdateScale();
+
     if (panel_view_)
       panel_view_->monitor = monitor;
 
@@ -69,10 +78,29 @@ Shield::Shield(session::Manager::Ptr const& session_manager, indicator::Indicato
     QueueDraw();
   });
 
+  scale.changed.connect([this] (double scale) {
+    if (prompt_view_ && primary())
+      prompt_view_->scale = scale;
+
+    if (cof_view_)
+      cof_view_->scale = scale;
+
+    if (prompt_layout_)
+      prompt_layout_->SetLeftAndRightPadding(2 * Settings::GRID_SIZE.CP(scale));
+
+    background_layer_.reset();
+    UpdateBackgroundTexture();
+  });
+
   mouse_move.connect([this] (int x, int y, int, int, unsigned long, unsigned long) {
     auto const& abs_geo = GetAbsoluteGeometry();
     grab_motion.emit(abs_geo.x + x, abs_geo.y + y);
   });
+}
+
+void Shield::UpdateScale()
+{
+  scale = unity::Settings::Instance().em(monitor)->DPIScale();
 }
 
 void Shield::UpdateBackgroundTexture()
@@ -116,6 +144,12 @@ void Shield::ShowPrimaryView()
 {
   if (primary_layout_)
   {
+    if (prompt_view_)
+    {
+      prompt_view_->scale = scale();
+      prompt_layout_->AddView(prompt_view_.GetPointer());
+    }
+
     GrabScreen(false);
     SetLayout(primary_layout_.GetPointer());
     return;
@@ -128,20 +162,26 @@ void Shield::ShowPrimaryView()
 
   main_layout->AddView(CreatePanel());
 
-  nux::HLayout* prompt_layout = new nux::HLayout();
-  prompt_layout->SetLeftAndRightPadding(2 * Settings::GRID_SIZE);
+  prompt_layout_ = new nux::HLayout();
+  prompt_layout_->SetLeftAndRightPadding(2 * Settings::GRID_SIZE.CP(scale));
 
-  prompt_view_ = CreatePromptView();
-  prompt_layout->AddView(prompt_view_);
+  if (prompt_view_)
+  {
+    prompt_view_->scale = scale();
+    prompt_layout_->AddView(prompt_view_.GetPointer());
+  }
 
   // 10 is just a random number to center the prompt view.
   main_layout->AddSpace(0, 10);
-  main_layout->AddLayout(prompt_layout);
+  main_layout->AddLayout(prompt_layout_.GetPointer());
   main_layout->AddSpace(0, 10);
 }
 
 void Shield::ShowSecondaryView()
 {
+  if (prompt_layout_)
+    prompt_layout_->RemoveChildObject(prompt_view_.GetPointer());
+
   if (cof_layout_)
   {
     SetLayout(cof_layout_.GetPointer());
@@ -153,8 +193,9 @@ void Shield::ShowSecondaryView()
   SetLayout(cof_layout_.GetPointer());
 
   // The circle of friends
-  CofView* cof_view = new CofView();
-  main_layout->AddView(cof_view);
+  cof_view_ = new CofView();
+  cof_view_->scale = scale();
+  main_layout->AddView(cof_view_);
 }
 
 Panel* Shield::CreatePanel()
@@ -180,20 +221,6 @@ Panel* Shield::CreatePanel()
   });
 
   return panel_view_;
-}
-
-UserPromptView* Shield::CreatePromptView()
-{
-  auto* prompt_view = new UserPromptView(session_manager_);
-
-  auto width = 8 * Settings::GRID_SIZE;
-  auto height = 3 * Settings::GRID_SIZE;
-
-  prompt_view->SetMinimumWidth(width);
-  prompt_view->SetMaximumWidth(width);
-  prompt_view->SetMinimumHeight(height);
-
-  return prompt_view;
 }
 
 nux::Area* Shield::FindKeyFocusArea(unsigned etype, unsigned long keysym, unsigned long modifiers)
