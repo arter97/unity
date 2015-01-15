@@ -46,7 +46,6 @@
 #include "unityshell.h"
 #include "BackgroundEffectHelper.h"
 #include "UnityGestureBroker.h"
-#include "launcher/EdgeBarrierController.h"
 #include "launcher/XdndCollectionWindowImp.h"
 #include "launcher/XdndManagerImp.h"
 #include "launcher/XdndStartStopNotifierImp.h"
@@ -958,6 +957,9 @@ bool UnityScreen::forcePaintOnTop()
 {
   return !allowWindowPaint ||
          lockscreen_controller_->IsLocked() ||
+         dash_controller_->IsVisible() ||
+         hud_controller_->IsVisible() ||
+         session_controller_->Visible() ||
           ((switcher_controller_->Visible() ||
             WindowManager::Default().IsExpoActive())
            && !fullscreen_windows_.empty () && (!(screen->grabbed () && !screen->otherGrabExist (NULL))));
@@ -2116,14 +2118,11 @@ bool UnityScreen::showLauncherKeyTerminate(CompAction* action,
 
     if (!dash_controller_->IsVisible())
     {
-      if (!adapter.IsTopWindowFullscreenOnMonitorWithMouse())
+      if (dash_controller_->ShowDash())
       {
-        if (dash_controller_->ShowDash())
-        {
-          tap_handled = true;
-          ubus_manager_.SendMessage(UBUS_PLACE_ENTRY_ACTIVATE_REQUEST,
-                                    g_variant_new("(sus)", "home.scope", dash::GOTO_DASH_URI, ""));
-        }
+        tap_handled = true;
+        ubus_manager_.SendMessage(UBUS_PLACE_ENTRY_ACTIVATE_REQUEST,
+                                  g_variant_new("(sus)", "home.scope", dash::GOTO_DASH_URI, ""));
       }
     }
     else
@@ -2533,9 +2532,6 @@ bool UnityScreen::ShowHud()
       QuicklistManager::Default()->Current()->Hide();
 
     auto& wm = WindowManager::Default();
-
-    if (wm.IsTopWindowFullscreenOnMonitorWithMouse())
-      return false;
 
     if (wm.IsScreenGrabbed())
     {
@@ -3041,7 +3037,7 @@ bool UnityWindow::glDraw(const GLMatrix& matrix,
           }
         }
       }
-      else if (decoration::Style::Get()->integrated_menus())
+      else if (uScreen->menus_->integrated_menus())
       {
         draw_panel_shadow = DrawPanelShadow::BELOW_WINDOW;
       }
@@ -3819,6 +3815,9 @@ void UnityScreen::OnScreenLocked()
 
   showLauncherKeyTerminate(&optionGetShowLauncher(), CompAction::StateTermKey, options);
   showMenuBarTerminate(&optionGetShowMenuBar(), CompAction::StateTermKey, options);
+
+  // We disable the edge barriers, to avoid blocking the mouse pointer during lockscreen
+  edge_barriers_->force_disable = true;
 }
 
 void UnityScreen::OnScreenUnlocked()
@@ -3833,6 +3832,8 @@ void UnityScreen::OnScreenUnlocked()
 
   for (auto& action : getActions())
     screen->addAction(&action);
+
+  edge_barriers_->force_disable = false;
 }
 
 void UnityScreen::SaveLockStamp(bool save)
@@ -3885,9 +3886,9 @@ void UnityScreen::initLauncher()
   auto xdnd_collection_window = std::make_shared<XdndCollectionWindowImp>();
   auto xdnd_start_stop_notifier = std::make_shared<XdndStartStopNotifierImp>();
   auto xdnd_manager = std::make_shared<XdndManagerImp>(xdnd_start_stop_notifier, xdnd_collection_window);
-  auto edge_barriers = std::make_shared<ui::EdgeBarrierController>();
+  edge_barriers_ = std::make_shared<ui::EdgeBarrierController>();
 
-  launcher_controller_ = std::make_shared<launcher::Controller>(xdnd_manager, edge_barriers);
+  launcher_controller_ = std::make_shared<launcher::Controller>(xdnd_manager, edge_barriers_);
   AddChild(launcher_controller_.get());
 
   switcher_controller_ = std::make_shared<switcher::Controller>();
@@ -3898,7 +3899,7 @@ void UnityScreen::initLauncher()
 
   /* Setup panel */
   timer.Reset();
-  panel_controller_ = std::make_shared<panel::Controller>(menus_, edge_barriers);
+  panel_controller_ = std::make_shared<panel::Controller>(menus_, edge_barriers_);
   AddChild(panel_controller_.get());
   LOG_INFO(logger) << "initLauncher-Panel " << timer.ElapsedSeconds() << "s";
 
