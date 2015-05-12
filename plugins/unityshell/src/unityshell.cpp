@@ -86,6 +86,34 @@
 /* Set up vtable symbols */
 COMPIZ_PLUGIN_20090315(unityshell, unity::UnityPluginVTable);
 
+static void save_state()
+{
+#ifndef USE_GLES
+  glPushAttrib(GL_ALL_ATTRIB_BITS);
+
+  glMatrixMode(GL_MODELVIEW);
+  glPushMatrix();
+  glMatrixMode(GL_PROJECTION);
+  glPushMatrix();
+  glMatrixMode(GL_TEXTURE);
+  glPushMatrix();
+#endif
+}
+
+static void restore_state()
+{
+#ifndef USE_GLES
+  glMatrixMode(GL_TEXTURE);
+  glPopMatrix();
+  glMatrixMode(GL_PROJECTION);
+  glPopMatrix();
+  glMatrixMode(GL_MODELVIEW);
+  glPopMatrix();
+
+  glPopAttrib();
+#endif
+}
+
 namespace cgl = compiz::opengl;
 
 namespace unity
@@ -261,7 +289,8 @@ UnityScreen::UnityScreen(CompScreen* screen)
       renderer.find("Mesa X11") != std::string::npos ||
       renderer.find("LLVM") != std::string::npos ||
       renderer.find("on softpipe") != std::string::npos ||
-      (getenv("UNITY_LOW_GFX_MODE") != NULL && atoi(getenv("UNITY_LOW_GFX_MODE")) == 1))
+      (getenv("UNITY_LOW_GFX_MODE") != NULL && atoi(getenv("UNITY_LOW_GFX_MODE")) == 1) ||
+      optionGetLowGraphicsMode())
     {
       unity_settings_.SetLowGfxMode(true);
     }
@@ -337,6 +366,7 @@ UnityScreen::UnityScreen(CompScreen* screen)
      optionSetAutohideAnimationNotify(boost::bind(&UnityScreen::optionChanged, this, _1, _2));
      optionSetDashBlurExperimentalNotify(boost::bind(&UnityScreen::optionChanged, this, _1, _2));
      optionSetShortcutOverlayNotify(boost::bind(&UnityScreen::optionChanged, this, _1, _2));
+     optionSetLowGraphicsModeNotify(boost::bind(&UnityScreen::optionChanged, this, _1, _2));
      optionSetShowLauncherInitiate(boost::bind(&UnityScreen::showLauncherKeyInitiate, this, _1, _2, _3));
      optionSetShowLauncherTerminate(boost::bind(&UnityScreen::showLauncherKeyTerminate, this, _1, _2, _3));
      optionSetKeyboardFocusInitiate(boost::bind(&UnityScreen::setKeyboardFocusKeyInitiate, this, _1, _2, _3));
@@ -630,12 +660,17 @@ void UnityScreen::nuxPrologue()
   glDisable(GL_LIGHTING);
 #endif
 
+  save_state();
   glGetError();
 }
 
 void UnityScreen::nuxEpilogue()
 {
 #ifndef USE_GLES
+  glMatrixMode(GL_PROJECTION);
+  glLoadIdentity();
+  glMatrixMode(GL_MODELVIEW);
+  glLoadIdentity();
   /* In some unknown place inside nux drawing we change the viewport without
    * setting it back to the default one, so we need to restore it before allowing
    * compiz to take the scene */
@@ -649,6 +684,7 @@ void UnityScreen::nuxEpilogue()
 
   gScreen->resetRasterPos();
   glDisable(GL_SCISSOR_TEST);
+  restore_state();
 }
 
 void UnityScreen::setPanelShadowMatrix(GLMatrix const& matrix)
@@ -3595,6 +3631,14 @@ void UnityScreen::optionChanged(CompOption* opt, UnityshellOptions::Options num)
       break;
     case UnityshellOptions::ShortcutOverlay:
       shortcut_controller_->SetEnabled(optionGetShortcutOverlay());
+      break;
+    case UnityshellOptions::LowGraphicsMode:
+      if (optionGetLowGraphicsMode())
+          BackgroundEffectHelper::blur_type = BLUR_NONE;
+      else
+          BackgroundEffectHelper::blur_type = (unity::BlurType)optionGetDashBlurExperimental();
+
+      unity::Settings::Instance().SetLowGfxMode(optionGetLowGraphicsMode());
       break;
     case UnityshellOptions::DecayRate:
       launcher_options->edge_decay_rate = optionGetDecayRate() * 100;

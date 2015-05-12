@@ -116,7 +116,6 @@ Controller::Impl::Impl(Controller* parent, XdndManager::Ptr const& xdnd_manager,
   , launcher_open(false)
   , launcher_keynav(false)
   , launcher_grabbed(false)
-  , reactivate_keynav(false)
   , keynav_restore_window_(true)
   , launcher_key_press_time_(0)
   , dbus_server_(DBUS_NAME)
@@ -157,11 +156,10 @@ Controller::Impl::Impl(Controller* parent, XdndManager::Ptr const& xdnd_manager,
   });
 
   ubus.RegisterInterest(UBUS_QUICKLIST_END_KEY_NAV, [this](GVariant * args) {
-    if (reactivate_keynav)
-    {
-      parent_->KeyNavGrab();
-      keynav_restore_window_ = true;
-    }
+    reactivate_index = model_->SelectionIndex();
+
+    parent_->KeyNavGrab();
+    keynav_restore_window_ = true;
 
     model_->SetSelection(reactivate_index);
     AbstractLauncherIcon::Ptr const& selected = model_->Selection();
@@ -1289,6 +1287,10 @@ void Controller::KeyNavGrab()
     pimpl->keyboard_launcher_->key_down.connect(sigc::mem_fun(pimpl.get(), &Controller::Impl::ReceiveLauncherKeyPress));
   pimpl->launcher_event_outside_connection_ =
     pimpl->keyboard_launcher_->mouse_down_outside_pointer_grab_area.connect(sigc::mem_fun(pimpl.get(), &Controller::Impl::ReceiveMouseDownOutsideArea));
+  pimpl->launcher_key_nav_terminate_ =
+    pimpl->keyboard_launcher_->key_nav_terminate_request.connect([this] {
+       KeyNavTerminate(false);
+    });
 }
 
 void Controller::KeyNavActivate()
@@ -1296,7 +1298,6 @@ void Controller::KeyNavActivate()
   if (pimpl->launcher_keynav)
     return;
 
-  pimpl->reactivate_keynav = false;
   pimpl->launcher_keynav = true;
   pimpl->keynav_restore_window_ = true;
   pimpl->keyboard_launcher_ = pimpl->CurrentLauncher();
@@ -1319,6 +1320,11 @@ void Controller::KeyNavActivate()
 
   if (selected)
   {
+    if (selected->GetIconType() == AbstractLauncherIcon::IconType::HOME)
+    {
+      pimpl->ubus.SendMessage(UBUS_DASH_ABOUT_TO_SHOW, NULL);
+    }
+
     pimpl->ubus.SendMessage(UBUS_LAUNCHER_SELECTION_CHANGED,
                             glib::Variant(selected->tooltip_text()));
   }
@@ -1332,6 +1338,11 @@ void Controller::KeyNavNext()
 
   if (selected)
   {
+    if (selected->GetIconType() == AbstractLauncherIcon::IconType::HOME)
+    {
+      pimpl->ubus.SendMessage(UBUS_DASH_ABOUT_TO_SHOW, NULL);
+    }
+
     pimpl->ubus.SendMessage(UBUS_LAUNCHER_SELECTION_CHANGED,
                             glib::Variant(selected->tooltip_text()));
   }
@@ -1345,6 +1356,11 @@ void Controller::KeyNavPrevious()
 
   if (selected)
   {
+    if (selected->GetIconType() == AbstractLauncherIcon::IconType::HOME)
+    {
+      pimpl->ubus.SendMessage(UBUS_DASH_ABOUT_TO_SHOW, NULL);
+    }
+
     pimpl->ubus.SendMessage(UBUS_LAUNCHER_SELECTION_CHANGED,
                             glib::Variant(selected->tooltip_text()));
   }
@@ -1355,13 +1371,6 @@ void Controller::KeyNavTerminate(bool activate)
   if (!pimpl->launcher_keynav)
     return;
 
-  if (activate && pimpl->keynav_restore_window_)
-  {
-    /* If the selected icon is running, we must not restore the input to the old */
-    AbstractLauncherIcon::Ptr const& icon = pimpl->model_->Selection();
-    pimpl->keynav_restore_window_ = !icon->GetQuirk(AbstractLauncherIcon::Quirk::RUNNING);
-  }
-
   pimpl->keyboard_launcher_->ExitKeyNavMode();
 
   if (pimpl->launcher_grabbed)
@@ -1369,6 +1378,7 @@ void Controller::KeyNavTerminate(bool activate)
     pimpl->keyboard_launcher_->UnGrabKeyboard();
     pimpl->launcher_key_press_connection_->disconnect();
     pimpl->launcher_event_outside_connection_->disconnect();
+    pimpl->launcher_key_nav_terminate_->disconnect();
     pimpl->launcher_grabbed = false;
     pimpl->ubus.SendMessage(UBUS_LAUNCHER_END_KEY_NAV,
                             glib::Variant(pimpl->keynav_restore_window_));
@@ -1512,8 +1522,6 @@ void Controller::Impl::OpenQuicklist()
   if (model_->Selection()->OpenQuicklist(true, keyboard_launcher_->monitor(), keynav_restore_window_))
   {
     keynav_restore_window_ = false;
-    reactivate_keynav = true;
-    reactivate_index = model_->SelectionIndex();
     parent_->KeyNavTerminate(false);
   }
 }

@@ -138,7 +138,6 @@ public:
   bool launcher_open;
   bool launcher_keynav;
   bool launcher_grabbed;
-  bool reactivate_keynav;
   int reactivate_index;
   bool keynav_restore_window_;
   int launcher_key_press_time_;
@@ -149,6 +148,7 @@ public:
 
   connection::Wrapper launcher_key_press_connection_;
   connection::Wrapper launcher_event_outside_connection_;
+  connection::Wrapper launcher_key_nav_terminate_; 
   connection::Wrapper average_color_connection_;
 };
 
