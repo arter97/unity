@@ -287,13 +287,18 @@ UnityScreen::UnityScreen(CompScreen* screen)
 
   if (renderer.find("Software Rasterizer") != std::string::npos ||
       renderer.find("Mesa X11") != std::string::npos ||
-      renderer.find("LLVM") != std::string::npos ||
-      renderer.find("on softpipe") != std::string::npos ||
+      renderer.find("llvmpipe") != std::string::npos ||
+      renderer.find("softpipe") != std::string::npos ||
       (getenv("UNITY_LOW_GFX_MODE") != NULL && atoi(getenv("UNITY_LOW_GFX_MODE")) == 1) ||
-      optionGetLowGraphicsMode())
+       optionGetLowGraphicsMode())
     {
       unity_settings_.SetLowGfxMode(true);
     }
+
+  if (getenv("UNITY_LOW_GFX_MODE") != NULL && atoi(getenv("UNITY_LOW_GFX_MODE")) == 0)
+  {
+    unity_settings_.SetLowGfxMode(false);
+  }
 #endif
 
   if (!failed)
@@ -986,14 +991,28 @@ void UnityScreen::DrawPanelUnderDash()
 
 bool UnityScreen::forcePaintOnTop()
 {
-  return !allowWindowPaint ||
-         lockscreen_controller_->IsLocked() ||
-         (dash_controller_->IsVisible() && !nux::GetGraphicsDisplay()->PointerIsGrabbed()) ||
-         hud_controller_->IsVisible() ||
-         session_controller_->Visible() ||
-          ((switcher_controller_->Visible() ||
-            WM.IsExpoActive())
-           && !fullscreen_windows_.empty () && (!(screen->grabbed () && !screen->otherGrabExist (NULL))));
+  if (!allowWindowPaint ||
+      lockscreen_controller_->IsLocked() ||
+      (dash_controller_->IsVisible() && !nux::GetGraphicsDisplay()->PointerIsGrabbed()) ||
+      hud_controller_->IsVisible() ||
+      session_controller_->Visible())
+  {
+    return true;
+  }
+
+  if (!fullscreen_windows_.empty())
+  {
+    if (menus_->menu_open())
+      return true;
+
+    if (switcher_controller_->Visible() || WM.IsExpoActive())
+    {
+      if (!screen->grabbed() || screen->otherGrabExist(nullptr))
+        return true;
+    }
+  }
+
+  return false;
 }
 
 void UnityScreen::EnableCancelAction(CancelActionTarget target, bool enabled, int modifiers)
@@ -1255,7 +1274,6 @@ void UnityWindow::DoOverrideFrameRegion(CompRegion &region)
 
   window->updateFrameRegionSetCurrentIndex(MAXSHORT);
   window->updateFrameRegion(region);
-  deco_win_->UpdateFrameRegion(region);
   window->updateFrameRegionSetCurrentIndex(oldUpdateFrameRegionIndex);
 }
 
