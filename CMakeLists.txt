@@ -10,7 +10,7 @@ include (GNUInstallDirs)
 #
 set (PROJECT_NAME "unity")
 set (UNITY_MAJOR 7)
-set (UNITY_MINOR 4)
+set (UNITY_MINOR 5)
 set (UNITY_MICRO 0)
 set (UNITY_VERSION "${UNITY_MAJOR}.${UNITY_MINOR}.${UNITY_MICRO}")
 set (UNITY_API_VERSION "6.0")
@@ -134,8 +134,8 @@ add_custom_target (distcheck
        && mkdir ${ARCHIVE_NAME}/build
        && cd ${ARCHIVE_NAME}/build
        && cmake -DCMAKE_INSTALL_PREFIX=../install -DGSETTINGS_LOCALINSTALL=ON .. -DCMAKE_MODULE_PATH=/usr/share/cmake
-       && make -j4
-       && make -j4 install
+       && make
+       && make install
        && make check-headless
   )
 add_dependencies(distcheck dist)
