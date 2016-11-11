@@ -78,6 +78,8 @@ private:
   void OnPresenceStatusChanged(bool idle);
   void OnScreenSaverActivationRequest(bool activate);
   void OnPrimaryShieldMotion(int x, int y);
+  void OnLockScreenInputEvent(XEvent const&);
+  void OnBlankWindowInputEvent(XEvent const&);
 
   std::vector<nux::ObjectPtr<BaseShield>> shields_;
   nux::ObjectWeakPtr<BaseShield> primary_shield_;

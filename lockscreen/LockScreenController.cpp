@@ -28,6 +28,7 @@
 #include "LockScreenShield.h"
 #include "LockScreenSettings.h"
 #include "unity-shared/AnimationUtils.h"
+#include "unity-shared/InputMonitor.h"
 #include "unity-shared/UnitySettings.h"
 #include "unity-shared/UScreen.h"
 #include "unity-shared/WindowManager.h"
@@ -120,6 +121,8 @@ Controller::Controller(DBusManager::Ptr const& dbus_manager,
 
     if (animation::GetDirection(fade_animator_) == animation::Direction::BACKWARD)
     {
+      auto events_cb = sigc::track_obj(sigc::mem_fun(this, &Controller::OnLockScreenInputEvent), *primary_shield_);
+      input::Monitor::Get().UnregisterClient(events_cb);
       primary_shield_connections_.Clear();
       uscreen_connection_->block();
       hidden_window_connection_->block();
@@ -199,6 +202,20 @@ void Controller::OnPrimaryShieldMotion(int x, int y)
       break;
     }
   }
+}
+
+void Controller::OnLockScreenInputEvent(XEvent const& event)
+{
+  switch (event.type)
+  {
+    case MotionNotify:
+    case ButtonPress:
+      if (primary_shield_->IsIndicatorOpen())
+        break;
+    case ButtonRelease:
+      OnPrimaryShieldMotion(event.xmotion.x_root, event.xmotion.y_root);
+      break;
+  }
 
   ResetPostLockScreenSaver();
 }
@@ -210,11 +227,8 @@ void Controller::SetupPrimaryShieldConnections()
 
   primary_shield_connections_.Clear();
 
-  auto move_cb = sigc::mem_fun(this, &Controller::OnPrimaryShieldMotion);
-  primary_shield_connections_.Add(primary_shield_->grab_motion.connect(move_cb));
-
-  auto key_cb = sigc::hide(sigc::hide(sigc::mem_fun(this, &Controller::ResetPostLockScreenSaver)));
-  primary_shield_connections_.Add(primary_shield_->grab_key.connect(key_cb));
+  auto events_cb = sigc::track_obj(sigc::mem_fun(this, &Controller::OnLockScreenInputEvent), *primary_shield_);
+  input::Monitor::Get().RegisterClient(input::Events::INPUT, events_cb);
 
   if (!session_manager_->is_locked())
   {
@@ -318,8 +332,17 @@ void Controller::HideBlankWindow()
   blank_window_->ShowWindow(false);
   animation::SetValue(blank_window_animator_, animation::Direction::BACKWARD);
 
+  if (prompt_activation_)
+    BlankWindowGrabEnable(false);
+
   blank_window_.Release();
   lockscreen_delay_timeout_.reset();
+}
+
+void Controller::OnBlankWindowInputEvent(XEvent const&)
+{
+  if (!lockscreen_timeout_)
+    HideBlankWindow();
 }
 
 void Controller::BlankWindowGrabEnable(bool grab)
@@ -329,41 +352,29 @@ void Controller::BlankWindowGrabEnable(bool grab)
 
   if (grab)
   {
-    for (auto const& shield : shields_)
+    if (!primary_shield_.IsValid())
     {
-      shield->UnGrabPointer();
-      shield->UnGrabKeyboard();
+      blank_window_->EnableInputWindow(true);
+      blank_window_->GrabPointer();
+      blank_window_->GrabKeyboard();
     }
 
-    blank_window_->EnableInputWindow(true);
-    blank_window_->GrabPointer();
-    blank_window_->GrabKeyboard();
+    input::Monitor::Get().RegisterClient(input::Events::INPUT, sigc::mem_fun(this, &Controller::OnBlankWindowInputEvent));
     nux::GetWindowCompositor().SetAlwaysOnFrontWindow(blank_window_.GetPointer());
-
-    blank_window_->mouse_move.connect([this](int, int, int dx, int dy, unsigned long, unsigned long) {
-      if ((dx || dy) && !lockscreen_timeout_) HideBlankWindow();
-    });
-    blank_window_->key_down.connect([this] (unsigned long et, unsigned long k, unsigned long s, const char* c, unsigned short kc) {
-      if (prompt_view_.GetPointer() && prompt_view_->focus_view())
-        prompt_view_->focus_view()->key_down.emit(et, k, s, c, kc);
-      if (!lockscreen_timeout_) HideBlankWindow();
-    });
-    blank_window_->mouse_down.connect([this] (int, int, unsigned long, unsigned long) {
-      if (!lockscreen_timeout_) HideBlankWindow();
-    });
   }
   else
   {
-    blank_window_->UnGrabPointer();
-    blank_window_->UnGrabKeyboard();
+    input::Monitor::Get().UnregisterClient(sigc::mem_fun(this, &Controller::OnBlankWindowInputEvent));
 
-    for (auto const& shield : shields_)
+    if (primary_shield_.IsValid())
     {
-      if (!shield->primary())
-        continue;
-
-      shield->GrabPointer();
-      shield->GrabKeyboard();
+      primary_shield_->GrabPointer();
+      primary_shield_->GrabKeyboard();
+    }
+    else
+    {
+      blank_window_->UnGrabPointer();
+      blank_window_->UnGrabKeyboard();
     }
   }
 }
@@ -386,6 +397,7 @@ void Controller::OnLockRequested(bool prompt)
   if (prompt)
   {
     EnsureBlankWindow();
+    BlankWindowGrabEnable(true);
     blank_window_->SetOpacity(1.0);
   }
 
