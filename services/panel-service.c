@@ -34,8 +34,6 @@
 #include <X11/XF86keysym.h>
 #include <X11/extensions/XInput2.h>
 
-#include <upstart/upstart-dbus.h>
-
 G_DEFINE_TYPE (PanelService, panel_service, G_TYPE_OBJECT);
 
 #define GET_PRIVATE(o) \
@@ -193,6 +191,14 @@ panel_service_class_dispose (GObject *self)
     }
 
   G_OBJECT_CLASS (panel_service_parent_class)->dispose (self);
+}
+
+void
+panel_service_clear_remote_data (PanelService *self)
+{
+  g_return_if_fail (PANEL_IS_SERVICE (self));
+
+  g_hash_table_remove_all (self->priv->panel2entries_hash);
 }
 
 static void
@@ -843,9 +849,9 @@ emit_upstart_event (const gchar *event)
       return;
     }
 
-  GVariant *result = g_dbus_connection_call_sync (conn, DBUS_SERVICE_UPSTART,
-                                                  DBUS_PATH_UPSTART,
-                                                  DBUS_INTERFACE_UPSTART,
+  GVariant *result = g_dbus_connection_call_sync (conn, "com.ubuntu.Upstart",
+                                                  "/com/ubuntu/Upstart",
+                                                  "com.ubuntu.Upstart0_6",
                                                   "EmitEvent",
                                                   g_variant_new ("(sasb)", event, NULL, 0),
                                                   NULL, G_DBUS_CALL_FLAGS_NO_AUTO_START, -1,
