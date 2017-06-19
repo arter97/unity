@@ -1,3 +1,17 @@
+unity (7.5.0+17.10.20170619-0ubuntu1) artful; urgency=medium
+
+  * Rename ubuntu-session systemd target to unity-session to inline with
+    new session name:
+    - modify data/unity7.service.in and debian/unity.links to reflect new
+      systemd target.
+    - Breaks against older version of ubuntu-session, now that unity-session
+      provides that new systemd target name.
+  * Recommends unity-session, as ubuntu-session can't be a transitional package
+    (it will be the Gnome Shell default ubuntu session), this is how we install
+    that new session package again.
+
+ -- Didier Roche <didrocks@ubuntu.com>  Mon, 19 Jun 2017 10:50:58 +0200
+
 unity (7.5.0+17.10.20170609-0ubuntu1) artful; urgency=medium
 
   * Use g_mkdir_with_parents instead of mkdir.
