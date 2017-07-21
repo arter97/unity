@@ -58,6 +58,9 @@ const std::string CURSOR_SCALE_FACTOR = "cursor-scale-factor";
 const std::string APP_SCALE_MONITOR = "app-scale-factor-monitor";
 const std::string APP_USE_MAX_SCALE = "app-fallback-to-maximum-scale-factor";
 
+const std::string COMPIZ_SETTINGS = "org.compiz";
+const std::string COMPIZ_PROFILE = "current-profile";
+
 const std::string UBUNTU_UI_SETTINGS = "com.ubuntu.user-interface";
 const std::string SCALE_FACTOR = "scale-factor";
 
@@ -96,6 +99,7 @@ public:
   Impl(Settings* owner)
     : parent_(owner)
     , usettings_(g_settings_new(SETTINGS_NAME.c_str()))
+    , compiz_settings_(g_settings_new(COMPIZ_SETTINGS.c_str()))
     , launcher_settings_(g_settings_new(LAUNCHER_SETTINGS.c_str()))
     , lim_settings_(g_settings_new(LIM_SETTINGS.c_str()))
     , gestures_settings_(g_settings_new(GESTURES_SETTINGS.c_str()))
@@ -108,9 +112,10 @@ public:
     , cached_form_factor_(FormFactor::DESKTOP)
     , cursor_scale_(1.0)
     , cached_double_click_activate_(true)
-    , changing_gnome_settings_(false)
     , remote_content_enabled_(true)
   {
+    InitializeLowGfx();
+
     parent_->form_factor.SetGetterFunction(sigc::mem_fun(this, &Impl::GetFormFactor));
     parent_->form_factor.SetSetterFunction(sigc::mem_fun(this, &Impl::SetFormFactor));
     parent_->double_click_activate.SetGetterFunction(sigc::mem_fun(this, &Impl::GetDoubleClickActivate));
@@ -119,13 +124,18 @@ public:
     parent_->launcher_position.SetSetterFunction(sigc::mem_fun(this, &Impl::SetLauncherPosition));
     parent_->desktop_type.SetGetterFunction(sigc::mem_fun(this, &Impl::GetDesktopType));
     parent_->pam_check_account_type.SetGetterFunction(sigc::mem_fun(this, &Impl::GetPamCheckAccountType));
+    parent_->supports_3d.changed.connect(sigc::mem_fun(this, &Impl::OnSupports3DChanged));
     parent_->low_gfx.changed.connect(sigc::mem_fun(this, &Impl::UpdateCompizProfile));
 
     for (unsigned i = 0; i < monitors::MAX; ++i)
       em_converters_.emplace_back(std::make_shared<EMConverter>());
 
+    signals_.Add<void, GSettings*, const gchar*>(compiz_settings_, "changed::" + COMPIZ_PROFILE, [this] (GSettings*, const gchar *) {
+      parent_->low_gfx = (GetCurrentCompizProfile() == CCS_PROFILE_LOWGFX);
+    });
+
     signals_.Add<void, GSettings*, const gchar*>(usettings_, "changed::" + LOWGFX, [this] (GSettings*, const gchar *) {
-      UpdateLowGfx();
+      UpdateCompizProfile(GetLowGfxSetting());
     });
 
     signals_.Add<void, GSettings*, const gchar*>(usettings_, "changed::" + FORM_FACTOR, [this] (GSettings*, const gchar*) {
@@ -170,11 +180,8 @@ public:
     });
 
     signals_.Add<void, GSettings*, const gchar*>(gnome_ui_settings_, "changed::" + GNOME_TEXT_SCALE_FACTOR, [this] (GSettings*, const gchar* t) {
-      if (!changing_gnome_settings_)
-      {
-        double new_scale_factor = g_settings_get_double(gnome_ui_settings_, GNOME_TEXT_SCALE_FACTOR.c_str());
-        g_settings_set_double(ui_settings_, TEXT_SCALE_FACTOR.c_str(), new_scale_factor);
-      }
+      double new_scale_factor = g_settings_get_double(gnome_ui_settings_, GNOME_TEXT_SCALE_FACTOR.c_str());
+      g_settings_set_double(ui_settings_, TEXT_SCALE_FACTOR.c_str(), new_scale_factor);
     });
 
     signals_.Add<void, GSettings*, const gchar*>(lim_settings_, "changed", [this] (GSettings*, const gchar*) {
@@ -191,11 +198,8 @@ public:
 
     UScreen::GetDefault()->changed.connect(sigc::hide(sigc::hide(sigc::mem_fun(this, &Impl::UpdateDPI))));
 
-    UpdateLowGfx();
-    UpdateCompizProfile(parent_->low_gfx());
-    UpdateLimSetting();
-
     // The order is important here, DPI is the last thing to be updated
+    UpdateLimSetting();
     UpdateGesturesSetting();
     UpdateTextScaleFactor();
     UpdateCursorScaleFactor();
@@ -244,14 +248,54 @@ public:
     cached_launcher_position_ = static_cast<LauncherPosition>(g_settings_get_enum(launcher_settings_, LAUNCHER_POSITION.c_str()));
   }
 
-  void UpdateLowGfx()
+  void InitializeLowGfx()
   {
-    parent_->low_gfx = g_settings_get_boolean(usettings_, LOWGFX.c_str()) != FALSE;
+    parent_->low_gfx = GetLowGfxSetting();
+    UpdateCompizProfile(parent_->low_gfx());
+  }
+
+  std::string GetCurrentCompizProfile()
+  {
+    return glib::String(g_settings_get_string(compiz_settings_, COMPIZ_PROFILE.c_str())).Str();
+  }
+
+  glib::Variant GetUserLowGfxSetting()
+  {
+    return glib::Variant(g_settings_get_user_value(usettings_, LOWGFX.c_str()), glib::StealRef());
+  }
+
+  bool GetLowGfxSetting()
+  {
+    if (glib::Variant const& user_setting = GetUserLowGfxSetting())
+    {
+      return user_setting.GetBool();
+    }
+    else
+    {
+      auto default_profile = glib::gchar_to_string(g_getenv("UNITY_DEFAULT_PROFILE"));
+      if (!default_profile.empty())
+      {
+        return (default_profile == CCS_PROFILE_LOWGFX);
+      }
+      else if (!parent_->supports_3d() ||
+               glib::gchar_to_string(getenv("UNITY_HAS_3D_SUPPORT")) == "false")
+      {
+        return true;
+      }
+      else
+      {
+        return (GetCurrentCompizProfile() == CCS_PROFILE_LOWGFX);
+      }
+    }
   }
 
   void UpdateCompizProfile(bool lowgfx)
   {
     auto const& profile = lowgfx ? CCS_PROFILE_LOWGFX : CCS_PROFILE_DEFAULT;
+
+    if (GetCurrentCompizProfile() == profile)
+      return;
+
     auto profile_change_cmd = (std::string(UNITY_LIBDIR G_DIR_SEPARATOR_S) + CCS_PROFILE_CHANGER_TOOL + " " + profile);
 
     glib::Error error;
@@ -261,6 +305,12 @@ public:
     {
       LOG_ERROR(logger) << "Failed to switch compiz profile: " << error;
     }
+  }
+
+  void OnSupports3DChanged(bool supports_3d)
+  {
+    if (!GetUserLowGfxSetting())
+      parent_->low_gfx = !supports_3d;
   }
 
   void UpdateLimSetting()
@@ -418,7 +468,7 @@ public:
           if (value > 0)
             ui_scale = static_cast<double>(value)/DPI_SCALING_STEP;
         }
-        else 
+        else
         {
           value = FindOptimalScale(uscreen, monitor);
           ui_scale = static_cast<double>(value)/DPI_SCALING_STEP;
@@ -455,8 +505,7 @@ public:
 
   void UpdateAppsScaling(double scale)
   {
-    changing_gnome_settings_ = true;
-    changing_gnome_settings_timeout_.reset();
+    signals_.Block(gnome_ui_settings_);
     unsigned integer_scaling = std::max<unsigned>(1, std::lround(scale));
     double point_scaling = scale / static_cast<double>(integer_scaling);
     double text_scale_factor = parent_->font_scaling() * point_scaling;
@@ -467,7 +516,7 @@ public:
     g_settings_set_double(gnome_ui_settings_, GNOME_TEXT_SCALE_FACTOR.c_str(), text_scale_factor);
 
     changing_gnome_settings_timeout_.reset(new glib::TimeoutSeconds(GNOME_SETTINGS_CHANGED_WAIT_SECONDS, [this] {
-      changing_gnome_settings_ = false;
+      signals_.Unblock(gnome_ui_settings_);
       return false;
     }, glib::Source::Priority::LOW));
   }
@@ -491,6 +540,7 @@ public:
 
   Settings* parent_;
   glib::Object<GSettings> usettings_;
+  glib::Object<GSettings> compiz_settings_;
   glib::Object<GSettings> launcher_settings_;
   glib::Object<GSettings> lim_settings_;
   glib::Object<GSettings> gestures_settings_;
@@ -506,7 +556,6 @@ public:
   FormFactor cached_form_factor_;
   double cursor_scale_;
   bool cached_double_click_activate_;
-  bool changing_gnome_settings_;
   bool remote_content_enabled_;
 };
 
@@ -515,7 +564,8 @@ public:
 //
 
 Settings::Settings()
-  : is_standalone(false)
+  : supports_3d(glib::gchar_to_string(getenv("UNITY_HAS_3D_SUPPORT")) != "false")
+  , is_standalone(false)
   , pimpl(new Impl(this))
 {
   if (settings_instance)
