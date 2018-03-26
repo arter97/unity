@@ -1,3 +1,12 @@
+unity (7.5.1+17.10.20180326) artful; urgency=medium
+
+  * Fixed HiDPI behaviors back to Ubuntu 16.10
+    - Revert "UnitySettings: If scale-factor is not set,
+        find and set right scale for HiDPI displays."
+    - Revert "Round gtk scaling factor to closest integer. "
+
+ -- Park Ju Hyung <qkrwngud825@gmail.com>  Mon, 26 Mar 2018 23:35:50 +0900
+
 unity (7.5.0+17.10.20171010-0ubuntu1) artful; urgency=medium
 
   [ Andrea Azzarone ]
