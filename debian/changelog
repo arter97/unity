@@ -1,3 +1,12 @@
+unity (7.4.6+16.04.20180326) xenial; urgency=medium
+
+  * Fixed HiDPI behaviors back to Ubuntu 16.10
+    - Revert "UnitySettings: If scale-factor is not set,
+        find and set right scale for HiDPI displays."
+    - Revert "Round gtk scaling factor to closest integer. "
+
+ -- Park Ju Hyung <qkrwngud825@gmail.com>  Mon, 26 Mar 2018 23:35:50 +0900
+
 unity (7.4.5+16.04.20180221-0ubuntu1) xenial; urgency=medium
 
   * Unity use track_obj to safely connect to UScreen and Settings
