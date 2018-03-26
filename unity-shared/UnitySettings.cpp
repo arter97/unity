@@ -402,7 +402,7 @@ public:
       const auto dpi = std::max(dpi_x, dpi_y);
 
       if (dpi > DPI_SCALING_LIMIT)
-        scale = static_cast<int>(scale * std::lround(dpi / DPI_SCALING_LIMIT));
+        scale = static_cast<int>(std::lround(scale * dpi / DPI_SCALING_LIMIT));
     }
 
     return scale;
@@ -478,7 +478,7 @@ public:
   void UpdateAppsScaling(double scale)
   {
     signals_.Block(desktop_ui_settings_);
-    unsigned integer_scaling = std::max<unsigned>(1, std::lround(scale));
+    unsigned integer_scaling = std::max<unsigned>(1, scale);
     double point_scaling = scale / static_cast<double>(integer_scaling);
     double text_scale_factor = parent_->font_scaling() * point_scaling;
     glib::Variant default_cursor_size(g_settings_get_default_value(desktop_ui_settings_, DESKTOP_CURSOR_SIZE.c_str()), glib::StealRef());
