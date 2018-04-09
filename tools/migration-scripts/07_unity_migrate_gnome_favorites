@@ -22,7 +22,7 @@ from gi.repository import Gio
 import os
 
 UNITY_LAUNCHER_SETTINGS = "com.canonical.Unity.Launcher";
-UNITY_LAUNCER_FAVORITES = "favorites";
+UNITY_LAUNCHER_FAVORITES = "favorites";
 
 # This comes from gnome-shell/js/ui/appFavorites.js
 GNOME_RENAMED_DESKTOP_IDS = {
@@ -60,10 +60,10 @@ GNOME_RENAMED_DESKTOP_IDS = {
     'nautilus.desktop': 'org.gnome.Nautilus.desktop',
     'polari.desktop': 'org.gnome.Polari.desktop',
     'totem.desktop': 'org.gnome.Totem.desktop',
-};
+}
 
 launcher_settings = Gio.Settings.new(UNITY_LAUNCHER_SETTINGS)
-favorites = launcher_settings.get_strv(UNITY_LAUNCER_FAVORITES)
+favorites = launcher_settings.get_strv(UNITY_LAUNCHER_FAVORITES)
 replaced = False
 
 for i, fav in enumerate(favorites):
@@ -73,5 +73,5 @@ for i, fav in enumerate(favorites):
     replaced = True
 
 if replaced:
-  launcher_settings.set_strv(UNITY_LAUNCER_FAVORITES, favorites)
+  launcher_settings.set_strv(UNITY_LAUNCHER_FAVORITES, favorites)
   Gio.Settings.sync()
