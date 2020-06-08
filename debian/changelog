@@ -1,3 +1,12 @@
+unity (7.5.1+20.04.20200608) focal; urgency=medium
+
+  * Fixed HiDPI behaviors back to Ubuntu 16.10
+    - Revert "UnitySettings: If scale-factor is not set,
+        find and set right scale for HiDPI displays."
+    - Revert "Round gtk scaling factor to closest integer. "
+
+ -- Park Ju Hyung <qkrwngud825@gmail.com>  Mon, 08 Jun 2020 15:43:05 +0900
+
 unity (7.5.0+20.04.20200312-0ubuntu1) focal; urgency=medium
 
   [ Khurshid Alam ]
