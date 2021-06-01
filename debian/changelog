@@ -1,3 +1,42 @@
+unity (7.5.1+21.10.20210601.1-0ubuntu1) impish; urgency=medium
+
+  * New upstream release
+  * IntrospectionData: Keep Get() const as it should be.
+    The builder is now invalid but unreffing will happne in the destructor
+  * ResultRendererTile: Use proper casting to GdkPixbuf for drag icon
+  * CompizUtils: Add missing iostream include
+  * FileManager: Support timestamps and parent windows and implement for GNOME.
+    Finally implement org.gnome.Nautilus.FileOperations2 so we can get rid
+    of using our ubuntu patch in nautilus https://trello.com/c/ZVKL0Loz
+  * ApplicationManager: Add ability to get window properties.
+    A simple way to get properties through bamf, so that we don't have
+    to compute the atom ourselves.
+  * ApplicationManager: Add function to find a window by an (unique) property.
+    This is relevant for unique property values, otherwise we'd just return
+    the firs window matching it.
+  * GnomeFileManager: Use upstream OpenWindowsWithLocations.
+    Find nautilus application windows by their unique GTK window object path
+    using the application manager, in this way we can drop the support to
+    the ubuntu-only XUbuntuOpenLocationsXids property.
+    As per this, recommends an higher version of nautilus.
+  * VolumeLauncherIcons: Hide shadowed mounts
+  * TestSoftwareCenterLauncherIcon: Expose proper virtual function.
+    Compiler seems to be confused by using a base class implementation,
+    so let's just point to the class one and leave it figure out which
+    implementation to use at runtime.
+  * TestGtkIconInfo: Ignore icons that gtk can't find.
+    We still ensure that we've tested various, so the test is still valid
+  * TestResultRenderer: Use a freedesktop icon for the test.
+    So we can be sure that a theme will provide it
+  * tests/dummy-xorg-test-runner.sh: Do not delete log files on failure
+  * LauncherController: Move GetLastIconPriority into a private impl header.
+    Being a template it must be defined for all its customers, so expose it
+    to the test.
+    Fixes linking issue on s390x.
+  * tests/test_text_input: Initialize previews style
+
+ -- Marco Trevisan (Treviño) <mail@3v1n0.net>  Tue, 01 Jun 2021 19:58:38 +0000
+
 unity (7.5.0+20.04.20200312-0ubuntu1) focal; urgency=medium
 
   [ Khurshid Alam ]

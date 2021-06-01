@@ -49,6 +49,7 @@ public:
   virtual std::string GetUri() const = 0;
   virtual bool HasSiblings() const = 0;
   virtual bool IsMounted() const = 0;
+  virtual bool IsShadowed() const = 0;
 
   virtual void Eject() = 0;
   virtual void Mount() = 0;

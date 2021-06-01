@@ -34,8 +34,10 @@ struct MockFileManager : FileManager
   MOCK_METHOD2(Open, void(std::string const& uri, uint64_t time));
   MOCK_METHOD1(OpenTrash, void(uint64_t time));
   MOCK_METHOD1(TrashFile, bool(std::string const& uri));
-  MOCK_METHOD1(EmptyTrash, void(uint64_t time));
-  MOCK_METHOD3(CopyFiles, void(std::set<std::string> const& files, std::string const& dest, uint64_t time));
+  MOCK_METHOD2(EmptyTrash, void(uint64_t time, Window parent_xid));
+  MOCK_METHOD4(CopyFiles, void(std::set<std::string> const& files,
+                              std::string const& dest, uint64_t time,
+                              Window parent_xid));
   MOCK_CONST_METHOD1(WindowsForLocation, WindowList(std::string const&));
   MOCK_CONST_METHOD1(LocationForWindow, std::string(ApplicationWindowPtr const&));
 

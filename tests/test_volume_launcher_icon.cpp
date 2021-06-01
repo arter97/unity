@@ -711,7 +711,7 @@ TEST_F(TestVolumeLauncherIcon, AcceptDropUnmounted)
   InSequence seq;
   ON_CALL(*volume_, IsMounted()).WillByDefault(Return(false));
   EXPECT_CALL(*volume_, Mount());
-  EXPECT_CALL(*file_manager_, CopyFiles(data.Uris(), volume_->GetUri(), time));
+  EXPECT_CALL(*file_manager_, CopyFiles(data.Uris(), volume_->GetUri(), time, 0));
   icon_->AcceptDrop(data);
 }
 
@@ -725,7 +725,7 @@ TEST_F(TestVolumeLauncherIcon, AcceptDropMounted)
 
   InSequence seq;
   EXPECT_CALL(*volume_, Mount()).Times(0);
-  EXPECT_CALL(*file_manager_, CopyFiles(data.Uris(), volume_->GetUri(), time));
+  EXPECT_CALL(*file_manager_, CopyFiles(data.Uris(), volume_->GetUri(), time, 0));
   icon_->AcceptDrop(data);
 }
 

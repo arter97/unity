@@ -259,7 +259,7 @@ nux::NBitmapData* ResultRendererTile::GetDndImage(Result const& row) const
   if (container && container->drag_icon && container->drag_icon.IsType(GDK_TYPE_PIXBUF))
   {
     // Need to ref the drag icon because GdkGraphics will unref it.
-    nux::GdkGraphics graphics(GDK_PIXBUF(g_object_ref(container->drag_icon)));
+    nux::GdkGraphics graphics(g_object_ref(static_cast<GdkPixbuf*>(container->drag_icon)));
     bitmap = graphics.GetBitmap();
   }
   return bitmap ? bitmap : ResultRenderer::GetDndImage(row);

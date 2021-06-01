@@ -39,7 +39,7 @@ namespace unity
 namespace
 {
 
-#define DEFAULT_GICON ". GThemedIcon cmake"
+#define DEFAULT_GICON ". GThemedIcon terminal"
 
 } // namespace [anonymous]
 

@@ -54,7 +54,10 @@ function do_cleanup()
 {
   if [ -n "$x_pid" ] && (kill -0 $x_pid &> /dev/null); then kill $x_pid; fi
   rm $conffile
-  rm $logfile*
+
+  if [[ "$ret_val" == 0 ]]; then
+    rm $logfile*
+  fi
 }
 
 trap "do_cleanup; exit 1" SIGHUP SIGINT SIGSEGV SIGTERM

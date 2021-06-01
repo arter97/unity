@@ -76,7 +76,7 @@ TEST_F(TestTrashLauncherIcon, QuicklistEmptyTrash)
   auto const& empty_trash_menu = menus.front();
 
   unsigned time = g_random_int();
-  EXPECT_CALL(*fm_, EmptyTrash(time));
+  EXPECT_CALL(*fm_, EmptyTrash(time, 0));
   dbusmenu_menuitem_handle_event(empty_trash_menu, DBUSMENU_MENUITEM_EVENT_ACTIVATED, nullptr, time);
 }
 

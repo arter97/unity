@@ -78,6 +78,9 @@ public:
     if (IsBlackListed() && parent_->GetManagedWindows().empty())
       return false;
 
+    if (volume_->IsShadowed())
+      return false;
+
     return true;
   }
 

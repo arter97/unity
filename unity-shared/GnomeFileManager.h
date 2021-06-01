@@ -35,9 +35,9 @@ public:
   void Open(std::string const& uri, uint64_t timestamp);
   void OpenTrash(uint64_t timestamp);
 
-  void CopyFiles(std::set<std::string> const& uris, std::string const& dest, uint64_t timestamp);
+  void CopyFiles(std::set<std::string> const& uris, std::string const& dest, uint64_t timestamp, Window parent_xid);
   bool TrashFile(std::string const& uri);
-  void EmptyTrash(uint64_t timestamp);
+  void EmptyTrash(uint64_t timestamp, Window parent_xid);
 
   WindowList WindowsForLocation(std::string const& location) const;
   std::string LocationForWindow(ApplicationWindowPtr const&) const;

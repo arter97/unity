@@ -22,6 +22,7 @@
 #include "FavoriteStore.h"
 #include "LauncherController.h"
 #include "LauncherControllerPrivate.h"
+#include "LauncherControllerPrivateImpl.h"
 #include "ExpoLauncherIcon.h"
 #include "DesktopLauncherIcon.h"
 #include "DesktopUtilities.h"

@@ -55,6 +55,7 @@ public:
   virtual WindowType type() const { return WindowType::UNKNOWN; }
 
   virtual Window window_id() const { return xid_; }
+  virtual std::string property(std::string const& name) const { return name; }
   virtual int monitor() const { return -1; }
   virtual ApplicationPtr application() const { return ApplicationPtr(); }
   virtual bool Focus() const { return false; }

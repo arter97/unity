@@ -38,16 +38,26 @@ TEST(TestGtkIconInfo, EmptyIconInfo)
 TEST(TestGtkIconInfo, ValidIconInfo)
 {
   GList *icons = gtk_icon_theme_list_icons(gtk_icon_theme_get_default(), "Emblems");
+  bool found_any = false;
 
   for (GList *l = icons; l; l = l->next)
   {
     auto icon_name = static_cast <const char*>(l->data);
     GtkIconInfo *ginfo = gtk_icon_theme_lookup_icon(gtk_icon_theme_get_default(), icon_name, 32, GTK_ICON_LOOKUP_FORCE_SIZE);
     glib::Object<GtkIconInfo> info(ginfo);
+    if (!ginfo)
+    {
+      ASSERT_THAT(info.RawPtr(), IsNull());
+      continue;
+    }
+
+    found_any = true;
     ASSERT_THAT(info.RawPtr(), NotNull());
     ASSERT_TRUE(info);
     ASSERT_EQ(info, ginfo);
   }
+
+  ASSERT_TRUE(found_any);
 
   g_list_free_full(icons, g_free);
 }

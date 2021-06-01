@@ -23,6 +23,7 @@
 #include <gtest/gtest.h>
 
 #include "unity-shared/DashStyle.h"
+#include "unity-shared/PreviewStyle.h"
 #include "unity-shared/StaticCairoText.h"
 #include "unity-shared/TextInput.h"
 #include "test_utils.h"
@@ -55,6 +56,7 @@ class TestTextInput : public ::testing::Test
        pango_entry = entry->GetPangoEntry();
      }
 
+     dash::previews::Style previews_style_;
      dash::Style dash_style_;
      nux::ObjectPtr<TextInputMock> entry;
      StaticCairoText* hint;

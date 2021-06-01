@@ -55,7 +55,6 @@ IntrospectionData::~IntrospectionData()
 GVariant* IntrospectionData::Get() const
 {
   GVariant* data = g_variant_builder_end(builder_);
-  g_clear_pointer(&builder_, g_variant_builder_unref);
   return data;
 }
 

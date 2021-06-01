@@ -81,6 +81,7 @@ public:
 
   WindowType type() const override;
   Window window_id() const override;
+  std::string property(std::string const& name) const override;
   ApplicationPtr application() const override;
   void Quit() const override;
 
@@ -172,6 +173,7 @@ public:
   WindowList GetWindowsForMonitor(int monitor = -1) const override;
   ApplicationPtr GetApplicationForWindow(Window xid) const override;
   ApplicationWindowPtr GetWindowForId(Window xid) const override;
+  ApplicationWindowPtr GetWindowForProperty(const std::string& name, const std::string& value) const override;
 
   ApplicationPtr EnsureApplication(BamfView*) const;
   ApplicationWindowPtr EnsureWindow(BamfView*) const;

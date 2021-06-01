@@ -209,6 +209,11 @@ Window AppWindow::window_id() const
   return bamf_window_get_xid(bamf_window_);
 }
 
+std::string AppWindow::property(std::string const& property) const
+{
+  return glib::String(bamf_window_get_utf8_prop(bamf_window_, property.c_str())).Str();
+}
+
 WindowType AppWindow::type() const
 {
   switch (bamf_window_get_window_type(bamf_window_))
@@ -720,6 +725,26 @@ ApplicationWindowPtr Manager::GetWindowForId(Window xid) const
 
     if (bamf_window_get_xid(win) == xid)
       return pool::EnsureWindow(*this, static_cast<BamfView*>(l->data));
+  }
+
+  return nullptr;
+}
+
+ApplicationWindowPtr Manager::GetWindowForProperty(std::string const& name, std::string const& value) const
+{
+  if (name.empty())
+    return nullptr;
+
+  for (auto const& win_pair : pool::wins_)
+  {
+    if (win_pair.second->property(name) == value)
+      return win_pair.second;
+  }
+
+  for (auto const& win : GetWindowsForMonitor())
+  {
+    if (win->property(name) == value)
+      return win;
   }
 
   return nullptr;

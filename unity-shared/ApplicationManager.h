@@ -102,6 +102,8 @@ public:
     return !(operator==(other));
   }
 
+  virtual std::string property(std::string const& name) const = 0;
+
   nux::ROProperty<int> monitor;
 
   nux::ROProperty<std::string> title;
@@ -225,6 +227,7 @@ public:
   virtual WindowList GetWindowsForMonitor(int monitor = -1) const = 0;
   virtual ApplicationPtr GetApplicationForWindow(Window xid) const = 0;
   virtual ApplicationWindowPtr GetWindowForId(Window xid) const = 0;
+  virtual ApplicationWindowPtr GetWindowForProperty(const std::string& name, const std::string& value) const = 0;
   virtual void FocusWindowGroup(WindowList const&, bool show_on_visible, int monitor) const = 0;
 
   sigc::signal<void, ApplicationPtr const&> application_started;

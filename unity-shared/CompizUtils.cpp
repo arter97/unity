@@ -21,6 +21,7 @@
 #include <cairo-xlib.h>
 #include <cairo-xlib-xrender.h>
 #include <core/screen.h>
+#include <iostream>
 
 namespace unity
 {

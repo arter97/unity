@@ -120,6 +120,12 @@ public:
     return static_cast<bool>(mount);
   }
 
+  bool IsShadowed() const
+  {
+    glib::Object<GMount> mount(g_volume_get_mount(volume_));
+    return mount ? g_mount_is_shadowed(mount) : false;
+  }
+
   void Eject()
   {
     if (!CanBeEjected())
@@ -262,6 +268,11 @@ bool VolumeImp::HasSiblings() const
 bool VolumeImp::IsMounted() const
 {
   return pimpl->IsMounted();
+}
+
+bool VolumeImp::IsShadowed() const
+{
+  return pimpl->IsShadowed();
 }
 
 void VolumeImp::Mount()

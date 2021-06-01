@@ -55,6 +55,7 @@ struct MockApplicationWindow : unity::ApplicationWindow
 
     ON_CALL(*this, type()).WillByDefault(Invoke([this] { return type_; }));
     ON_CALL(*this, window_id()).WillByDefault(Invoke([this] { return xid_; }));
+    ON_CALL(*this, property(_)).WillByDefault(Return("MockWindowProperty"));
     ON_CALL(*this, Focus()).WillByDefault(Invoke([this] { return LocalFocus(); }));
     ON_CALL(*this, application()).WillByDefault(Return(unity::ApplicationPtr()));
   }
@@ -71,6 +72,7 @@ struct MockApplicationWindow : unity::ApplicationWindow
 
   MOCK_CONST_METHOD0(type, unity::WindowType());
   MOCK_CONST_METHOD0(window_id, Window());
+  MOCK_CONST_METHOD1(property, std::string(std::string const&));
   MOCK_CONST_METHOD0(application, unity::ApplicationPtr());
   MOCK_CONST_METHOD0(Focus, bool());
   MOCK_CONST_METHOD0(Quit, void());
@@ -319,6 +321,9 @@ struct MockApplicationManager : public unity::ApplicationManager
     ON_CALL(*this, GetActiveApplication()).WillByDefault(Invoke([this] { return unity::ApplicationPtr(); } ));
     ON_CALL(*this, GetWindowsForMonitor(_)).WillByDefault(Invoke([this] (Window) { return unity::WindowList(); } ));
     ON_CALL(*this, GetWindowForId(_)).WillByDefault(Invoke([this] (int) { return unity::ApplicationWindowPtr(); } ));
+    ON_CALL(*this, GetWindowForProperty(_, _)).WillByDefault(Invoke([this] (std::string const&, std::string const&) {
+      return unity::ApplicationWindowPtr();
+    }));
   }
 
   static void StartApp(std::string const& desktop_file)
@@ -338,6 +343,7 @@ struct MockApplicationManager : public unity::ApplicationManager
   MOCK_CONST_METHOD0(GetActiveApplication, unity::ApplicationPtr());
   MOCK_CONST_METHOD1(GetWindowsForMonitor, unity::WindowList(int));
   MOCK_CONST_METHOD1(GetWindowForId, unity::ApplicationWindowPtr(Window));
+  MOCK_CONST_METHOD2(GetWindowForProperty, unity::ApplicationWindowPtr(std::string const&, std::string const&));
   MOCK_CONST_METHOD3(FocusWindowGroup, void(unity::WindowList const&, bool, int));
 
   unity::ApplicationPtr LocalGetApplicationForDesktopFile(std::string const& desktop_file)
