@@ -61,6 +61,11 @@ Shape::Shape(Window xid)
   }
   else
   {
+    width_ = 0;
+    height_ = 0;
+    xoffs_ = 0;
+    yoffs_ = 0;
+
     LOG_ERROR(logger) << "XShapeQueryExtend returned no extents";
     return;
   }

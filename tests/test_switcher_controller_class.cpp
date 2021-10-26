@@ -26,7 +26,7 @@ using namespace unity::switcher;
 using namespace std::chrono;
 
 FakeApplicationWindow::FakeApplicationWindow(Window xid, uint64_t active_number)
-  : MockApplicationWindow::Nice(xid)
+  : MockApplicationWindow(xid)
 {
   SetMonitor(-1);
   auto standalone_window = std::make_shared<StandaloneWindow>(window_id());

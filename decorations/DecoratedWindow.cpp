@@ -750,6 +750,12 @@ void Window::Impl::ComputeShapedShadowQuad()
   unsigned int radius = active() ? manager_->active_shadow_radius() : manager_->inactive_shadow_radius();
 
   Shape shape(win_->id());
+  if (shape.GetRectangles().empty())
+  {
+    shaped_shadow_pixmap_.reset();
+    return;
+  }
+
   auto const& border = win_->borderRect();
   auto const& shadow_offset = manager_->shadow_offset();
 

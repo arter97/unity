@@ -17,7 +17,7 @@
 
 MAX_WAIT=10
 
-binary=$(which $1)
+binary=$(command -v $1)
 
 if [ -z "$binary" ]; then
   if [ -z "$1" ]; then

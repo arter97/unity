@@ -49,7 +49,7 @@ const unsigned TICK_DURATION = 10 * 1000;
 /**
  * A fake ApplicationWindow for verifying selection of the switcher.
  */
-struct FakeApplicationWindow : public ::testmocks::MockApplicationWindow::Nice
+struct FakeApplicationWindow : public ::testmocks::MockApplicationWindow
 {
   typedef NiceMock<FakeApplicationWindow> Nice;
   FakeApplicationWindow(Window xid, uint64_t active_number = 0);

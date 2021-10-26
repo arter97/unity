@@ -1,3 +1,22 @@
+unity (7.5.1+22.04.20211026.2-0ubuntu1) jammy; urgency=medium
+
+  [ Uladzislau Nikalayevich ]
+  * DecoratedWindow: Do not try to use shaped shadows on empty quads.
+    Windows may have no shaped rectangles, but we're still trying to set
+    them. This is because we might not initialize the shape size, leading
+    to invalid values. (LP: #1904337)
+
+  [ Marco Trevisan (Treviño) ]
+  * DecorationsShape: Initialize parameters on missing rectangles.
+    In such case the shape should just be empty, but we didn't really handle
+    the case properly.
+  * dummy-xorg-test-runner: Use command -v instead of deprecated which
+  * TestSwitchController: Do not define FakeApplicationWindow as NiceMock twice.
+    It's already used as ::Nice later, no need to define it initially,
+    otherwise newer gtest won't compile
+
+ -- Marco Trevisan (Treviño) <mail@3v1n0.net>  Tue, 26 Oct 2021 17:36:55 +0000
+
 unity (7.5.1+21.10.20210601.1-0ubuntu1) impish; urgency=medium
 
   * New upstream release
